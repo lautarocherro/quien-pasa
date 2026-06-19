@@ -100,7 +100,17 @@
   <script src="js/app.js"></script>
   <script>
     // Register the service worker so the app is installable / works offline.
+    // When a new worker takes control after a deploy, reload once so the page
+    // never runs new HTML against old cached scripts. Guarded against loops and
+    // against firing on the very first install (when there was no controller).
     if ('serviceWorker' in navigator) {
+      var hadController = !!navigator.serviceWorker.controller;
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!hadController || refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
       });

@@ -1,9 +1,11 @@
 /* Service worker — makes the app installable and usable offline.
- * Network-first for same-origin requests (so a deploy is picked up immediately
- * online), falling back to cache when offline. Cross-origin requests (the ESPN
- * live API) are left untouched so live scores always hit the network. */
+ * Network-first with revalidation for same-origin requests: every fetch goes to
+ * the server with `cache: 'no-cache'`, so a new deploy is always picked up and a
+ * stale HTTP cache can never mask it. Falls back to the cache only when offline.
+ * Cross-origin requests (the ESPN live API) are left untouched so live scores
+ * always hit the network. */
 
-const CACHE = 'quien-pasa-v1';
+const CACHE = 'quien-pasa-v2';
 const CORE = [
   './', 'index.html',
   'css/styles.css',
@@ -14,7 +16,12 @@ const CORE = [
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE).catch(() => {})));
+  // Precache fresh copies (bypass the HTTP cache so the worker never seeds stale assets).
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(
+    CORE.map((u) => fetch(new Request(u, { cache: 'reload' }))
+      .then((r) => (r.ok ? c.put(u, r) : null))
+      .catch(() => {}))
+  )));
 });
 
 self.addEventListener('activate', (e) => {
@@ -31,7 +38,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // let ESPN / other hosts pass through
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })                 // always revalidate against the server
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
