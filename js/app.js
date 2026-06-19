@@ -461,10 +461,22 @@
         }
       }
       if (wasLive && (hg + ag) > prevTotal) goals.push(m);   // GOAL while we were watching
-      // Pull yellow/red cards for any live or just-finished game.
+      // Refresh the fixtures entry now (fresh scoreboard data) so detail can attach.
+      if (u.home && u.away) {
+        const k = fixKey(u.home, u.away);
+        const prev = LIVE_FIX[k];
+        if (prev) { u.events = prev.events; u.stats = prev.stats; }  // keep last detail until refetched
+        LIVE_FIX[k] = u;
+      }
+      // Pull cards (live + just-finished) and full detail (live only).
       if ((u.state === 'in' || u.state === 'post') && u.id) {
-        cardJobs.push(window.WCLive.fetchCards(u.id).then((cards) => {
-          if (applyCardsToMatch(m, cards)) mark(changed, m);
+        cardJobs.push(window.WCLive.fetchMatchDetail(u.id).then((det) => {
+          if (!det) return;
+          if (applyCardsToMatch(m, det.cards)) mark(changed, m);
+          if (u.state === 'in') {
+            const fx = LIVE_FIX[fixKey(u.home, u.away)];
+            if (fx) { fx.events = det.events; fx.stats = det.stats; }
+          }
         }));
       }
     });
@@ -478,8 +490,6 @@
       renderThirds(thirds);
       renderBracket(standings, thirds);
     }
-    // keep the fixtures list fresh (live scores, minutes, countdowns)
-    updates.forEach((u) => { if (u.home && u.away) LIVE_FIX[fixKey(u.home, u.away)] = u; });
     renderFixtures();
     if (goals.length) fireGoals(goals);        // after re-render so the flash hits the new row
   }
@@ -528,7 +538,44 @@
       <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>
       <div class="fx-meta"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
       ${venue}
+      ${u.state === 'in' ? fixDetail(u) : ''}
     </div>`;
+  }
+
+  // Live-only: goal/card timeline + match stats (possession, shots, etc.).
+  function fixDetail(u) {
+    const ev = u.events || [], st = u.stats || null;
+    let out = '';
+    if (ev.length) {
+      const icon = (k) => (k === 'goal' ? '⚽' : (k === 'yellow' ? '🟨' : '🟥'));
+      const rows = ev.map((e) => {
+        const tm = teamsById.get(e.team);
+        const note = e.note ? ` <span class="ev-note">(${e.note})</span>` : '';
+        return `<div class="ev"><span class="ev-min">${e.min}</span>` +
+          `<span class="ev-ic">${icon(e.kind)}</span>` +
+          `<span class="ev-pl">${e.player || ''}${note}</span>` +
+          `<span class="ev-fl">${tm ? tm.flag : ''}</span></div>`;
+      }).join('');
+      out += `<div class="fx-events"><div class="fx-dh">${t('ev_title')}</div>${rows}</div>`;
+    }
+    if (st && st[u.home] && st[u.away]) {
+      const H = st[u.home], A = st[u.away];
+      const num = (v) => (v == null ? '–' : v);
+      const pct = (v) => (v == null ? null : Math.round(parseFloat(v)));
+      const ph = pct(H.possession), pa = pct(A.possession);
+      const row = (hv, lbl, av) => `<div class="st-row"><span class="hv">${num(hv)}</span><span class="lb">${lbl}</span><span class="av">${num(av)}</span></div>`;
+      let s = '';
+      if (ph != null && pa != null) {
+        s += `<div class="st-row"><span class="hv">${ph}%</span><span class="lb">${t('st_possession')}</span><span class="av">${pa}%</span></div>`;
+        s += `<div class="st-bar"><span style="width:${ph}%"></span></div>`;
+      }
+      s += row(H.shots, t('st_shots'), A.shots);
+      s += row(H.sot, t('st_sot'), A.sot);
+      s += row(H.corners, t('st_corners'), A.corners);
+      s += row(H.fouls, t('st_fouls'), A.fouls);
+      out += `<div class="fx-stats"><div class="fx-dh">${t('st_title')}</div>${s}</div>`;
+    }
+    return out ? `<div class="fx-detail">${out}</div>` : '';
   }
 
   function renderFixtures() {

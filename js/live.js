@@ -120,6 +120,61 @@
     } catch (e) { return null; }
   }
 
+  // Full live detail for a match: { cards, events, stats }.
+  // events: [{ order, min, kind:'goal'|'yellow'|'red', team:<myId>, player, note }]
+  // stats:  { <myId>: { possession, shots, sot, corners, fouls } }
+  async function fetchMatchDetail(eventId) {
+    let j;
+    try {
+      const r = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=${eventId}`);
+      if (!r.ok) return null;
+      j = await r.json();
+    } catch (e) { return null; }
+
+    const espn2my = {};
+    ((j.boxscore && j.boxscore.teams) || []).forEach((tm) => {
+      const my = ABBR2ID[((tm.team && tm.team.abbreviation) || '').toUpperCase()];
+      if (my && tm.team && tm.team.id != null) espn2my[String(tm.team.id)] = my;
+    });
+
+    const events = [];
+    (j.keyEvents || []).forEach((e) => {
+      const tt = (e.type && e.type.type) || '';
+      let kind = null, note = '';
+      if (tt.indexOf('red') !== -1 && tt.indexOf('card') !== -1) kind = 'red';
+      else if (tt.indexOf('yellow') !== -1) kind = 'yellow';
+      else if (tt.indexOf('goal') !== -1) { kind = 'goal'; if (tt.indexOf('own') !== -1) note = 'OG'; else if (tt.indexOf('penalty') !== -1) note = 'P'; }
+      if (!kind) return;
+      const ath = e.participants && e.participants[0] && e.participants[0].athlete;
+      events.push({
+        order: (e.clock && typeof e.clock.value === 'number') ? e.clock.value : 0,
+        min: (e.clock && e.clock.displayValue) || '',
+        kind: kind,
+        team: espn2my[String(e.team && e.team.id)] || null,
+        player: (ath && (ath.shortName || ath.displayName)) || '',
+        note: note,
+      });
+    });
+    events.sort((a, b) => a.order - b.order);
+
+    const stats = {};
+    ((j.boxscore && j.boxscore.teams) || []).forEach((tm) => {
+      const my = espn2my[String(tm.team && tm.team.id)];
+      if (!my) return;
+      const g = (n) => { const s = (tm.statistics || []).find((x) => x.name === n); return s ? s.displayValue : null; };
+      stats[my] = {
+        possession: g('possessionPct'),
+        shots: g('totalShots'),
+        sot: g('shotsOnTarget'),
+        corners: g('wonCorners'),
+        fouls: g('foulsCommitted'),
+      };
+    });
+
+    return { cards: parseCards(j), events: events, stats: stats };
+  }
+
   // Poll a list of YYYYMMDD date strings; returns a flat list of match updates.
   async function pollDates(dates) {
     const all = [];
@@ -134,5 +189,5 @@
     return all;
   }
 
-  global.WCLive = { pollDates, fetchCards, parseCards, ABBR2ID };
+  global.WCLive = { pollDates, fetchCards, fetchMatchDetail, parseCards, ABBR2ID };
 })(typeof window !== 'undefined' ? window : globalThis);
