@@ -20,6 +20,7 @@
   <div class="app">
     <nav class="tabs" id="tabs">
       <button class="tab active" data-view="groups" data-i18n="tab_groups">Groups</button>
+      <button class="tab" data-view="fixtures" data-i18n="tab_fixtures">Fixtures</button>
       <button class="tab" data-view="thirds" data-i18n="tab_thirds">Best 3rd-Placed</button>
       <button class="tab" data-view="bracket" data-i18n="tab_bracket">Knockout Bracket</button>
       <button class="tab" data-view="rules" data-i18n="tab_rules">Tiebreak Rules</button>
@@ -39,6 +40,12 @@
         <span class="key"><span class="sw" style="background:var(--danger)"></span> <span data-i18n="legend_out">Eliminated</span></span>
       </div>
       <div class="groups-grid" id="groupsGrid"></div>
+    </section>
+
+    <!-- FIXTURES -->
+    <section class="view" id="view-fixtures">
+      <div class="note" data-i18n="fixtures_hint">Live and upcoming matches in order. Times shown in your local timezone.</div>
+      <div id="fixturesList"></div>
     </section>
 
     <!-- THIRDS -->

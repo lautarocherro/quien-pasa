@@ -421,6 +421,55 @@ td.edge-cell { min-width: 240px; }
   box-shadow: 0 8px 24px -10px rgba(246, 197, 88, 0.4);
 }
 
+/* ---- Fixtures ---- */
+#fixturesList { max-width: 720px; margin: 0 auto; }
+.fix-sec {
+  font-size: 13px; font-weight: 800; letter-spacing: 0.3px; color: var(--text);
+  margin: 22px 2px 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.fix-sec:first-child { margin-top: 4px; }
+.fix-day {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--muted); margin: 18px 4px 8px;
+}
+.fix-day:first-child { margin-top: 2px; }
+.fix {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 14px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.fix:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.fix.live { border-color: rgba(255, 77, 103, 0.45); box-shadow: inset 3px 0 0 var(--live); }
+.fix.done { opacity: 0.82; }
+.fx-teams { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fx-team { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 14px; }
+.fx-team .flag { font-size: 18px; width: 24px; text-align: center; flex: 0 0 auto; }
+.fx-team .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.fx-team .sc {
+  margin-left: auto; padding-left: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--muted); min-width: 14px; text-align: right;
+}
+.fx-team.win .nm { color: var(--text); }
+.fx-team.win .sc { color: var(--text); }
+.fx-meta { text-align: right; white-space: nowrap; }
+.fx-time { font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.fx-status { font-size: 11px; margin-top: 3px; }
+.fx-cd { color: var(--accent-2); font-weight: 600; }
+.fx-ft { color: var(--muted); font-weight: 700; letter-spacing: 0.4px; }
+.fx-live { color: var(--live); font-weight: 800; display: inline-flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.fx-venue {
+  grid-column: 1 / -1; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--row-line);
+  font-size: 11.5px; color: var(--muted);
+}
+
 /* ---- misc ---- */
 .view { display: none; }
 .view.active { display: block; animation: fade 0.22s ease; }

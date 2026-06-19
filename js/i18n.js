@@ -164,8 +164,11 @@
 
   const S = {
     en: {
-      tab_groups: 'Groups', tab_thirds: 'Best 3rd-Placed', tab_bracket: 'Knockout Bracket', tab_rules: 'Tiebreak Rules',
+      tab_groups: 'Groups', tab_fixtures: 'Fixtures', tab_thirds: 'Best 3rd-Placed', tab_bracket: 'Knockout Bracket', tab_rules: 'Tiebreak Rules',
       group_label: 'Group',
+      fixtures_hint: 'Live and upcoming matches in order. Times shown in your local timezone.',
+      fix_live: 'LIVE', fix_ft: 'FT', cd_in: 'in {0}', fix_soon: 'kicking off', fix_vs: 'vs',
+      fix_upcoming: 'Live & upcoming', fix_results: 'Results',
       legend_1st: '1st (advances)', legend_2nd: '2nd (advances)', legend_3rd: '3rd (best 8 advance)', legend_out: 'Eliminated',
       thirds_title: 'Ranking of the 12 third-placed teams',
       thirds_caption: 'The <strong>top 8</strong> qualify for the Round of 32. Ranked by overall points → goal difference → goals scored → fair-play (team conduct) → FIFA World Ranking.',
@@ -193,8 +196,11 @@
       rules_html: RULES_EN,
     },
     es: {
-      tab_groups: 'Grupos', tab_thirds: 'Mejores terceros', tab_bracket: 'Eliminatorias', tab_rules: 'Reglas de desempate',
+      tab_groups: 'Grupos', tab_fixtures: 'Partidos', tab_thirds: 'Mejores terceros', tab_bracket: 'Eliminatorias', tab_rules: 'Reglas de desempate',
       group_label: 'Grupo',
+      fixtures_hint: 'Partidos en vivo y próximos, en orden. Horarios en tu zona horaria local.',
+      fix_live: 'EN VIVO', fix_ft: 'Final', cd_in: 'en {0}', fix_soon: 'por comenzar', fix_vs: 'vs',
+      fix_upcoming: 'En vivo y próximos', fix_results: 'Resultados',
       legend_1st: '1º (avanza)', legend_2nd: '2º (avanza)', legend_3rd: '3º (avanzan los 8 mejores)', legend_out: 'Eliminado',
       thirds_title: 'Clasificación de los 12 terceros',
       thirds_caption: 'Los <strong>8 mejores</strong> avanzan a los dieciseisavos. Se ordenan por puntos → diferencia de goles → goles a favor → juego limpio (conducta) → Ranking Mundial FIFA.',

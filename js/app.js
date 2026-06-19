@@ -40,6 +40,10 @@
   const t = (...a) => (window.WCI18N ? window.WCI18N.t(...a) : a[0]);
   const tn = (team) => (window.WCI18N ? window.WCI18N.teamName(team) : team.name);
 
+  // Fixtures view: ESPN data (kickoff time, venue, live state) keyed by team pair.
+  const LIVE_FIX = {};
+  const fixKey = (a, b) => [a, b].sort().join('-');
+
   function init() {
     WCDATA.groups.forEach((g) => {
       groupsById.set(g.id, g);
@@ -51,6 +55,7 @@
     bindUI();
     renderAll();
     startLive();
+    loadFixtures();
   }
 
   // Translate static markup tagged with data-i18n / data-i18n-html.
@@ -473,7 +478,84 @@
       renderThirds(thirds);
       renderBracket(standings, thirds);
     }
+    // keep the fixtures list fresh (live scores, minutes, countdowns)
+    updates.forEach((u) => { if (u.home && u.away) LIVE_FIX[fixKey(u.home, u.away)] = u; });
+    renderFixtures();
     if (goals.length) fireGoals(goals);        // after re-render so the flash hits the new row
+  }
+
+  // -------- Fixtures (chronological live + upcoming + results) --------
+  async function loadFixtures() {
+    if (!window.WCLive) return;
+    const dates = Array.from(new Set(WCDATA.matches.map((m) => m.date.replace(/-/g, ''))));
+    let ups;
+    try { ups = await window.WCLive.pollDates(dates); } catch (e) { return; }
+    ups.forEach((u) => { if (u.home && u.away) LIVE_FIX[fixKey(u.home, u.away)] = u; });
+    renderFixtures();
+  }
+
+  const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+  function fmtCountdown(ms) {
+    if (ms <= 0) return t('fix_soon');
+    const mins = Math.floor(ms / 60000), h = Math.floor(mins / 60), days = Math.floor(h / 24);
+    let s;
+    if (days > 0) s = `${days}d ${h % 24}h`;
+    else if (h > 0) s = `${h}h ${mins % 60}m`;
+    else s = `${mins}m`;
+    return t('cd_in', s);
+  }
+
+  function fixCard(u) {
+    const h = teamsById.get(u.home), a = teamsById.get(u.away);
+    if (!h || !a) return '';
+    const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
+    const d = new Date(u.date);
+    const time = d.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+    const played = u.state !== 'pre';
+    const hg = u.scores[u.home], ag = u.scores[u.away];
+    let status, cls = '';
+    if (u.state === 'in') { status = `<span class="fx-live"><span class="livedot"></span>${u.detail || t('fix_live')}</span>`; cls = 'live'; }
+    else if (u.state === 'post') { status = `<span class="fx-ft">${t('fix_ft')}</span>`; cls = 'done'; }
+    else { status = `<span class="fx-cd">${fmtCountdown(d.getTime() - Date.now())}</span>`; }
+    const hw = played && hg > ag, aw = played && ag > hg;
+    const team = (tm, win, score) =>
+      `<div class="fx-team ${win ? 'win' : ''}"><span class="flag">${tm.flag || ''}</span>` +
+      `<span class="nm">${tn(tm)}</span><span class="sc">${played ? score : ''}</span></div>`;
+    const venue = u.venue
+      ? `<div class="fx-venue">📍 ${u.venue}${u.city ? ' · ' + u.city.split(',')[0] : ''}</div>` : '';
+    return `<div class="fix ${cls}">
+      <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>
+      <div class="fx-meta"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
+      ${venue}
+    </div>`;
+  }
+
+  function renderFixtures() {
+    const el = $('#fixturesList');
+    if (!el) return;
+    const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
+    const all = Object.values(LIVE_FIX).filter((u) => u.date && teamsById.get(u.home) && teamsById.get(u.away));
+    // Live + upcoming first (soonest first); finished results below (most recent first).
+    const upcoming = all.filter((u) => u.state !== 'post').sort((x, y) => new Date(x.date) - new Date(y.date));
+    const results = all.filter((u) => u.state === 'post').sort((x, y) => new Date(y.date) - new Date(x.date));
+    const dayList = (arr) => {
+      let s = '', lastDay = '';
+      arr.forEach((u) => {
+        const d = new Date(u.date);
+        const k = d.toDateString();
+        if (k !== lastDay) {
+          lastDay = k;
+          s += `<div class="fix-day">${capFirst(d.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>`;
+        }
+        s += fixCard(u);
+      });
+      return s;
+    };
+    let html = '';
+    if (upcoming.length) html += `<div class="fix-sec">${t('fix_upcoming')}</div>` + dayList(upcoming);
+    if (results.length) html += `<div class="fix-sec">${t('fix_results')}</div>` + dayList(results);
+    el.innerHTML = html;
   }
 
   // -------- Goal alerts --------

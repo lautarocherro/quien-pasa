@@ -35,22 +35,30 @@
       if (!comp) return;
       const st = (e.status && e.status.type) || {};
       const scores = {};
-      let ok = true;
+      let ok = true, homeId = null, awayId = null;
       (comp.competitors || []).forEach((c) => {
         const abbr = ((c.team && c.team.abbreviation) || '').toUpperCase();
         const id = ABBR2ID[abbr];
         if (!id) { ok = false; return; }
         scores[id] = parseInt(c.score, 10) || 0;
+        if (c.homeAway === 'home') homeId = id;
+        else if (c.homeAway === 'away') awayId = id;
       });
       const ids = Object.keys(scores);
       if (!ok || ids.length !== 2) return;
+      const v = comp.venue || {};
       out.push({
         id: String(e.id),
         a: ids[0],
         b: ids[1],
+        home: homeId || ids[0],
+        away: awayId || ids[1],
         scores: scores,
         state: st.state || 'pre',          // 'pre' | 'in' | 'post'
         detail: st.shortDetail || st.detail || '',
+        date: e.date || '',                // ISO kickoff (UTC)
+        venue: v.fullName || '',
+        city: (v.address && v.address.city) || '',
       });
     });
     return out;
