@@ -525,9 +525,9 @@
     const played = u.state !== 'pre';
     const hg = u.scores[u.home], ag = u.scores[u.away];
     let status, cls = '';
-    if (u.state === 'in') { status = `<span class="fx-live"><span class="livedot"></span>${u.detail || t('fix_live')}</span>`; cls = 'live'; }
-    else if (u.state === 'post') { status = `<span class="fx-ft">${t('fix_ft')}</span>`; cls = 'done'; }
-    else { status = `<span class="fx-cd">${fmtCountdown(d.getTime() - Date.now())}</span>`; }
+    if (u.state === 'in') { status = `<span class="fx-st-live"><span class="livedot"></span>${u.detail || t('fix_live')}</span>`; cls = 'live'; }
+    else if (u.state === 'post') { status = `<span class="fx-st-ft">${t('fix_ft')}</span>`; cls = 'done'; }
+    else { status = `<span class="fx-st-cd">${fmtCountdown(d.getTime() - Date.now())}</span>`; }
     const hw = played && hg > ag, aw = played && ag > hg;
     const team = (tm, win, score) =>
       `<div class="fx-team ${win ? 'win' : ''}"><span class="flag">${tm.flag || ''}</span>` +
@@ -535,10 +535,12 @@
     const venue = u.venue
       ? `<div class="fx-venue">📍 ${u.venue}${u.city ? ' · ' + u.city.split(',')[0] : ''}</div>` : '';
     return `<div class="fix ${cls}">
-      <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>
-      <div class="fx-meta"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
-      ${venue}
+      <div class="fx-main">
+        <div class="fx-when"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
+        <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>
+      </div>
       ${u.state === 'in' ? fixDetail(u) : ''}
+      ${venue}
     </div>`;
   }
 
