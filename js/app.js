@@ -722,6 +722,7 @@
         tab.classList.add('active');
         $$('.view').forEach((v) => v.classList.remove('active'));
         $('#view-' + tab.dataset.view).classList.add('active');
+        window.scrollTo(0, 0);
       });
     });
 
