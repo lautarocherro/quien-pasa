@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Cup 2026 — Best Thirds & Bracket</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>" />
+</head>
+<body>
+  <div class="app">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="groups" data-i18n="tab_groups">Groups</button>
+      <button class="tab" data-view="thirds" data-i18n="tab_thirds">Best 3rd-Placed</button>
+      <button class="tab" data-view="bracket" data-i18n="tab_bracket">Knockout Bracket</button>
+      <button class="tab" data-view="rules" data-i18n="tab_rules">Tiebreak Rules</button>
+      <div class="lang-sel" id="langSel">
+        <button data-lang="en">EN</button>
+        <button data-lang="es">ES</button>
+      </div>
+      <button id="alertToggle" class="alert-btn" title="Goal alerts (sound + notification)">🔔</button>
+    </nav>
+
+    <!-- GROUPS -->
+    <section class="view active" id="view-groups">
+      <div class="legend">
+        <span class="key"><span class="sw" style="background:var(--winner)"></span> <span data-i18n="legend_1st">1st (advances)</span></span>
+        <span class="key"><span class="sw" style="background:var(--runner)"></span> <span data-i18n="legend_2nd">2nd (advances)</span></span>
+        <span class="key"><span class="sw" style="background:var(--accent-2)"></span> <span data-i18n="legend_3rd">3rd (best 8 advance)</span></span>
+        <span class="key"><span class="sw" style="background:var(--danger)"></span> <span data-i18n="legend_out">Eliminated</span></span>
+      </div>
+      <div class="groups-grid" id="groupsGrid"></div>
+    </section>
+
+    <!-- THIRDS -->
+    <section class="view" id="view-thirds">
+      <div class="note" id="thirdsNote"></div>
+      <div class="thirds-wrap">
+        <div class="caption">
+          <h2 data-i18n="thirds_title">Ranking of the 12 third-placed teams</h2>
+          <p data-i18n-html="thirds_caption">The <strong>top 8</strong> qualify for the Round of 32. Ranked by overall points → goal difference → goals scored → fair-play (team conduct) → FIFA World Ranking.</p>
+        </div>
+        <table class="thirds" id="thirdsTable"></table>
+      </div>
+    </section>
+
+    <!-- BRACKET -->
+    <section class="view" id="view-bracket">
+      <div class="note" id="bracketNote"></div>
+      <div class="bracket-scroll">
+        <div class="bracket" id="bracket"></div>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section class="view" id="view-rules">
+      <div class="thirds-wrap">
+        <div class="caption"><h2 data-i18n="rules_title">FIFA tiebreaking policy</h2><p data-i18n="rules_subtitle">How standings and the best thirds are decided.</p></div>
+        <div id="rulesBody" style="padding:16px 18px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/allocations.js"></script>
+  <script src="js/bracket.js"></script>
+  <script src="js/live.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
