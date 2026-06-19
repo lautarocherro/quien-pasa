@@ -526,3 +526,52 @@ td.edge-cell { min-width: 240px; }
   .tabs { gap: 6px; }
   .tab { padding: 8px 13px; font-size: 13px; }
 }
+
+/* ---- Install (PWA) page ---- */
+#installBody { display: flex; flex-direction: column; gap: 18px; }
+.ins-cta {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink);
+  border: 0; border-radius: var(--radius-sm);
+  padding: 13px 22px; font-family: var(--sans); font-size: 15px; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 24px -12px rgba(30, 215, 154, 0.7);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.ins-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.ins-cta:active { transform: translateY(0); }
+.ins-cta:focus-visible { outline: 2px solid var(--winner); outline-offset: 3px; }
+.ins-other summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ins-state {
+  font-size: 13.5px; color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px;
+}
+.ins-state.ok { color: var(--accent); border-color: rgba(30, 215, 154, 0.35); background: rgba(30, 215, 154, 0.08); font-weight: 600; }
+.ins-why h4, .ins-manual h4 { margin: 0 0 8px; font-size: 13px; color: var(--accent-2); letter-spacing: 0.3px; text-transform: uppercase; }
+.ins-why ul { margin: 0; padding-left: 18px; color: var(--text); font-size: 13.5px; }
+.ins-why li { margin: 4px 0; }
+.ins-mi { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.ins-plat {
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 10px;
+}
+.ins-plat.is-primary { border-color: var(--line-2); box-shadow: var(--shadow-sm); }
+.ins-plat h4 { margin: 0 0 6px; font-size: 13.5px; color: var(--text); text-transform: none; letter-spacing: 0; }
+.ins-steps { margin: 0; padding-left: 20px; color: var(--text); font-size: 13.5px; }
+.ins-steps li { margin: 5px 0; }
+.ins-other { margin-top: 4px; }
+.ins-other summary {
+  cursor: pointer; color: var(--accent); font-size: 13px; font-weight: 600;
+  padding: 6px 0; list-style: none; user-select: none;
+}
+.ins-other summary::-webkit-details-marker { display: none; }
+.ins-other summary::before { content: '▸ '; }
+.ins-other[open] summary::before { content: '▾ '; }
+.ins-note { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
+
+/* Mobile: make the primary install action span the full width.
+   Placed after the base .ins-cta rule so it wins (media queries add no specificity). */
+@media (max-width: 600px) {
+  .ins-cta { align-self: stretch; justify-content: center; }
+}

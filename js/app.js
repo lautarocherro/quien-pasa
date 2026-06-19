@@ -27,6 +27,21 @@
     try { return localStorage.getItem('wc2026-alerts') !== '0'; } catch (e) { return true; }
   })();
 
+  // PWA install: capture the browser's install prompt (Chrome/Edge/Android).
+  // Registered at load so it fires even before the Install tab is opened.
+  let deferredPrompt = null;
+  let installOutcome = null;            // 'done' | 'dismissed' | null
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    renderInstall();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    installOutcome = 'done';
+    renderInstall();
+  });
+
   // teamId -> 3-letter code (e.g. mex -> MEX), for the compact bracket.
   const ID2CODE = (function () {
     const m = {};
@@ -54,6 +69,7 @@
     loadState();
     bindUI();
     renderAll();
+    renderInstall();
     startLive();
     loadFixtures();
   }
@@ -437,6 +453,84 @@
     if (el.dataset.done) return;
     el.dataset.done = '1';
     el.innerHTML = t('rules_html');
+  }
+
+  // -------- Install (PWA) --------
+  function isStandalone() {
+    const mm = window.matchMedia;
+    const installed = mm && ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay']
+      .some((m) => mm('(display-mode: ' + m + ')').matches);
+    return installed || window.navigator.standalone === true;
+  }
+  function platform() {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    const iOS = /iphone|ipad|ipod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (iOS) return 'ios';
+    if (/android/.test(ua)) return 'android';
+    return 'desktop';
+  }
+  function platCard(plat, primary) {
+    return `<div class="ins-plat${primary ? ' is-primary' : ''}">
+      <h4>${t('install_' + plat + '_title')}</h4>
+      <ol class="ins-steps">
+        <li>${t('install_' + plat + '_1')}</li>
+        <li>${t('install_' + plat + '_2')}</li>
+        <li>${t('install_' + plat + '_3')}</li>
+      </ol>
+    </div>`;
+  }
+
+  function renderInstall() {
+    const el = $('#installBody');
+    if (!el) return;
+
+    let head = '';
+    if (installOutcome === 'done') {
+      head = `<div class="ins-state ok">${t('install_done')}</div>`;
+    } else if (isStandalone()) {
+      head = `<div class="ins-state ok">${t('install_already')}</div>`;
+    } else if (deferredPrompt) {
+      head = `<button id="doInstall" class="ins-cta">${t('install_btn')}</button>`;
+    } else if (installOutcome === 'dismissed') {
+      head = `<div class="ins-state">${t('install_dismissed')}</div>`;
+    }
+
+    const why = `<div class="ins-why">
+      <h4>${t('install_why')}</h4>
+      <ul><li>${t('install_why_1')}</li><li>${t('install_why_2')}</li><li>${t('install_why_3')}</li></ul>
+    </div>`;
+
+    // Manual fallback: detected platform first, the rest tucked behind a toggle.
+    const order = [platform()].concat(['ios', 'android', 'desktop'].filter((p) => p !== platform()));
+    const intro = deferredPrompt ? t('install_manual_intro') : t('install_manual_intro_nobtn');
+    const installed = isStandalone() || installOutcome === 'done';
+    const manual = installed ? '' : `<div class="ins-manual">
+      <p class="ins-mi">${intro}</p>
+      ${platCard(order[0], true)}
+      <details class="ins-other">
+        <summary>${t('install_other_platforms')}</summary>
+        ${order.slice(1).map((p) => platCard(p, false)).join('')}
+        <p class="ins-note">${t('install_unsupported')}</p>
+      </details>
+    </div>`;
+
+    el.innerHTML = head + why + manual;
+    const btn = $('#doInstall', el);
+    if (btn) btn.addEventListener('click', doInstall);
+  }
+
+  async function doInstall() {
+    if (!deferredPrompt) { renderInstall(); return; }
+    try {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      installOutcome = (choice && choice.outcome === 'accepted') ? 'done' : 'dismissed';
+    } catch (e) {
+      installOutcome = null;          // API error (not a user choice) — just show manual steps
+    }
+    deferredPrompt = null;            // the prompt can only be used once
+    renderInstall();
   }
 
   // -------- Live scores (ESPN) --------
