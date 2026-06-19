@@ -253,6 +253,15 @@ tr.q-runner .pos { background: var(--runner); color: #11182b; }
 tr.q-third  .pos { background: var(--accent-2); color: #2a1c00; }
 tr.eliminated { opacity: 0.5; }
 td.pts { font-weight: 800; color: var(--text); }
+/* tiebreak note between two teams level on points */
+tr.tb-row td { padding: 0 4px 6px; border-bottom: 1px solid var(--row-line); }
+tr.tb-row .tb-box {
+  display: block; font-size: 10.5px; line-height: 1.3; color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid var(--accent-2);
+  border-radius: 0 6px 6px 0;
+  padding: 4px 8px; margin-left: 22px;
+}
 
 /* score editor inline */
 .matches { padding: 8px 12px 12px; }

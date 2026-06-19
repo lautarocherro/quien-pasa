@@ -157,7 +157,7 @@
             <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th><th>${t('col_pts')}</th>
           </tr></thead>
           <tbody>
-            ${ranked.map((r, i) => standingsRow(r, i, g.id, qThirds)).join('')}
+            ${standingsBody(ranked, g.id, qThirds, gm)}
           </tbody>
         </table></div>
         <div class="matches">
@@ -180,9 +180,8 @@
       const card = document.querySelector(`.group-card[data-group="${g.id}"]`);
       if (!card) continue;
       const ranked = standings.get(g.id);
-      card.querySelector('.standings tbody').innerHTML =
-        ranked.map((r, i) => standingsRow(r, i, g.id, qThirds)).join('');
       const gm = matchesForGroup(g.id);
+      card.querySelector('.standings tbody').innerHTML = standingsBody(ranked, g.id, qThirds, gm);
       const meta = card.querySelector('.gmeta');
       if (meta) meta.textContent = t('played_count', gm.filter((m) => m.played).length, gm.length);
     }
@@ -218,6 +217,50 @@
       <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
       <td class="pts">${s.points}</td>
     </tr>`;
+  }
+
+  // Why team A (above) ranks over team B (directly below), when level on points.
+  // Follows FIFA Article 13: head-to-head first, then overall GD/goals/fair-play,
+  // then FIFA ranking. Returns null when points differ (then it's just points).
+  function groupEdge(aRow, bRow, ranked, gm) {
+    const A = aRow.stats, B = bRow.stats;
+    if (A.points !== B.points) return null;
+    const f = (n) => (n > 0 ? '+' + n : '' + n);
+    const cluster = ranked.filter((r) => r.stats.points === A.points).map((r) => r.stats.teamId);
+    const H = WCEngine.headToHead(cluster, gm);
+    const ha = H.get(A.teamId), hb = H.get(B.teamId);
+    if (ha && hb) {
+      if (ha.points !== hb.points) return t('gedge_h2h_pts', A.points, ha.points, hb.points);
+      if (ha.gd !== hb.gd) return t('gedge_h2h_gd', A.points, f(ha.gd), f(hb.gd));
+      if (ha.gf !== hb.gf) return t('gedge_h2h_gf', A.points, ha.gf, hb.gf);
+    }
+    if (cluster.length > 2) {   // re-apply head-to-head to just this pair's match
+      const P = WCEngine.headToHead([A.teamId, B.teamId], gm);
+      const pa = P.get(A.teamId), pb = P.get(B.teamId);
+      if (pa && pb) {
+        if (pa.points !== pb.points) return t('gedge_h2h_pts', A.points, pa.points, pb.points);
+        if (pa.gd !== pb.gd) return t('gedge_h2h_gd', A.points, f(pa.gd), f(pb.gd));
+        if (pa.gf !== pb.gf) return t('gedge_h2h_gf', A.points, pa.gf, pb.gf);
+      }
+    }
+    if (A.gd !== B.gd) return t('gedge_gd', A.points, f(A.gd), f(B.gd));
+    if (A.gf !== B.gf) return t('gedge_gf', A.gf, B.gf);
+    if (A.fairPlay !== B.fairPlay) return t('gedge_fp', A.fairPlay, B.fairPlay);
+    return t('gedge_rank', WCDATA.fifaRank[A.teamId], WCDATA.fifaRank[B.teamId]);
+  }
+
+  // Standings rows + a tiebreak note inserted between teams level on points.
+  function standingsBody(ranked, gid, qThirds, gm) {
+    let html = '';
+    ranked.forEach((r, i) => {
+      html += standingsRow(r, i, gid, qThirds);
+      const next = ranked[i + 1];
+      if (next && r.stats.points === next.stats.points) {
+        const why = groupEdge(r, next, ranked, gm);
+        if (why) html += `<tr class="tb-row"><td colspan="11"><span class="tb-box">${why}</span></td></tr>`;
+      }
+    });
+    return html;
   }
 
   function matchRow(m) {
