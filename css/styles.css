@@ -454,7 +454,7 @@ td.edge-cell { min-width: 240px; }
 #fixturesList { max-width: 720px; margin: 0 auto; }
 .fix-filter {
   width: fit-content; margin: 0 auto 14px;
-  display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+  display: flex; border: 1px solid var(--line); border-radius: 999px;
   overflow: hidden; background: var(--panel);
 }
 .fix-filter button {
@@ -543,6 +543,16 @@ td.edge-cell { min-width: 240px; }
 .st-bar { height: 5px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; margin: 1px 0 5px; }
 .st-bar > span { display: block; height: 100%; background: var(--accent); }
 @media (max-width: 600px) { .fx-detail { grid-template-columns: 1fr; gap: 12px; } }
+/* expandable finished games */
+.fix.expandable .fx-main { cursor: pointer; }
+.fx-exp { flex: 0 0 auto; align-self: center; color: var(--muted); font-size: 12px; transition: transform 0.18s ease; }
+.fix.expandable.open .fx-exp { transform: rotate(180deg); }
+.fx-detail-slot { display: none; }
+.fix.open .fx-detail-slot { display: block; }
+.fx-detail-msg {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 12px;
+}
 
 /* ---- misc ---- */
 .view { display: none; }

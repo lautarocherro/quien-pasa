@@ -62,6 +62,7 @@
     try { return localStorage.getItem('wc2026-fixmode') === 'previous' ? 'previous' : 'upcoming'; }
     catch (e) { return 'upcoming'; }
   })();
+  const openFix = new Set();   // fixKeys of finished games the user has expanded
 
   function init() {
     WCDATA.groups.forEach((g) => {
@@ -680,17 +681,22 @@
       `<span class="nm">${tn(tm)}</span><span class="sc">${played ? score : ''}</span></div>`;
     const venue = u.venue
       ? `<div class="fx-venue">📍 ${u.venue}${u.city ? ' · ' + u.city.split(',')[0] : ''}</div>` : '';
-    return `<div class="fix ${cls}">
+    // Finished games are expandable: tap to load the goal/card timeline + stats.
+    const expandable = u.state === 'post';
+    return `<div class="fix ${cls}${expandable ? ' expandable' : ''}" data-fk="${fixKey(u.home, u.away)}"${u.id ? ` data-eid="${u.id}"` : ''}>
       <div class="fx-main">
         <div class="fx-when"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
         <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>
+        ${expandable ? '<div class="fx-exp" aria-hidden="true">▾</div>' : ''}
       </div>
       ${u.state === 'in' ? fixDetail(u) : ''}
+      ${expandable ? '<div class="fx-detail-slot"></div>' : ''}
       ${venue}
     </div>`;
   }
 
-  // Live-only: goal/card timeline + match stats (possession, shots, etc.).
+  // Goal/card timeline + match stats (possession, shots, etc.). Shown inline for
+  // live games and on demand for finished ones.
   function fixDetail(u) {
     const ev = u.events || [], st = u.stats || null;
     let out = '';
@@ -758,6 +764,43 @@
       html += upcoming.length ? dayList(upcoming) : `<div class="fix-empty">${t('fix_none_upcoming')}</div>`;
     }
     el.innerHTML = html;
+    // Wire expandable (finished) cards and restore any that were open before a re-render.
+    $$('#fixturesList .fix.expandable').forEach((card) => {
+      const main = $('.fx-main', card);
+      if (main) main.addEventListener('click', () => toggleFixDetail(card));
+      if (openFix.has(card.dataset.fk)) {
+        card.classList.add('open');
+        const u = LIVE_FIX[card.dataset.fk];
+        const slot = $('.fx-detail-slot', card);
+        if (u && slot && (u.events || u.stats)) fillFixSlot(slot, u);
+      }
+    });
+  }
+
+  function fillFixSlot(slot, u) {
+    slot.innerHTML = fixDetail(u) || `<div class="fx-detail-msg">${t('fix_no_detail')}</div>`;
+    slot.dataset.loaded = '1';
+  }
+
+  async function toggleFixDetail(card) {
+    const fk = card.dataset.fk;
+    const opening = !card.classList.contains('open');
+    card.classList.toggle('open', opening);
+    if (opening) openFix.add(fk); else openFix.delete(fk);
+    if (!opening) return;
+    const slot = $('.fx-detail-slot', card);
+    if (!slot || slot.dataset.loaded) return;
+    const u = LIVE_FIX[fk];
+    if (!u) return;
+    if (u.events || u.stats) { fillFixSlot(slot, u); return; }
+    const eid = card.dataset.eid;
+    if (!eid || !window.WCLive) { slot.innerHTML = `<div class="fx-detail-msg">${t('fix_no_detail')}</div>`; slot.dataset.loaded = '1'; return; }
+    slot.innerHTML = `<div class="fx-detail-msg">${t('fix_loading')}</div>`;
+    try {
+      const det = await window.WCLive.fetchMatchDetail(eid);
+      if (det) { u.events = det.events; u.stats = det.stats; }
+    } catch (e) {}
+    fillFixSlot(slot, u);
   }
 
   // -------- Goal alerts --------
