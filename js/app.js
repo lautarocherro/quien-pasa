@@ -415,13 +415,19 @@
     // A group's R32 slots only become FINAL (solid) once all its matches are
     // real finished results; live/predicted scores keep them provisional.
     const groupComplete = {};
+    const lockedPos = {};
     WCDATA.groups.forEach((g) => {
-      groupComplete[g.id] = matchesForGroup(g.id).every((m) => m.finished);
+      const gm = matchesForGroup(g.id);
+      groupComplete[g.id] = gm.every((m) => m.finished);
+      // Positions that are already mathematically settled (e.g. a team that beat
+      // both rivals has clinched 1st) — these render solid, not provisional.
+      lockedPos[g.id] = WCEngine.groupLockedTop2(g.teams.map((t) => t.id), gm, ENGINE_OPTS());
     });
     const allGroupsComplete = Object.values(groupComplete).every(Boolean);
     const bracket = WCBracket.build(standings, thirds, teamsById, {
       groupComplete,
       allGroupsComplete,
+      lockedPos,
     });
     note.innerHTML = bracket.note || '';
     const container = $('#bracket');

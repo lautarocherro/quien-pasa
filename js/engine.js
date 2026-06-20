@@ -315,6 +315,43 @@
     return false;
   }
 
+  /**
+   * Which of the top-2 group positions are LOCKED: a position is locked when only
+   * one team can occupy it across every completion of the remaining matches
+   * (results AND scorelines enumerated, ranked with the real Article-13 procedure).
+   * Used to render a bracket slot solid instead of provisional once it's certain
+   * (e.g. a team that has beaten both rivals has clinched 1st even mid-group).
+   * Returns { p1: <teamId|null>, p2: <teamId|null> }.
+   */
+  function groupLockedTop2(teamIds, groupMatches, opts) {
+    const fixed = [], remaining = [];
+    for (const m of groupMatches) {
+      if (m.played) fixed.push({ home: m.home, away: m.away, played: true, homeGoals: +m.homeGoals || 0, awayGoals: +m.awayGoals || 0 });
+      else remaining.push(m);
+    }
+    const G = ELIM_MAXG + 1, per = G * G;
+    const total = Math.pow(per, remaining.length);
+    if (total > ELIM_CAP) return { p1: null, p2: null };
+    const at1 = new Set(), at2 = new Set();
+    for (let s = 0; s < total; s++) {
+      const sim = []; let x = s;
+      for (let k = 0; k < remaining.length; k++) {
+        const code = x % per; x = Math.floor(x / per);
+        sim.push({ home: remaining[k].home, away: remaining[k].away, played: true, homeGoals: Math.floor(code / G), awayGoals: code % G });
+      }
+      const scenario = fixed.concat(sim);
+      const stats = computeStats(scenario, teamIds);
+      const ranked = rankGroup(teamIds, stats, scenario, opts);
+      at1.add(ranked[0].stats.teamId);
+      at2.add(ranked[1].stats.teamId);
+      if (at1.size > 1 && at2.size > 1) break;   // neither can be locked anymore
+    }
+    return {
+      p1: at1.size === 1 ? [...at1][0] : null,
+      p2: at2.size === 1 ? [...at2][0] : null,
+    };
+  }
+
   global.WCEngine = {
     FAIRPLAY,
     blankStats,
@@ -323,5 +360,6 @@
     rankGroup,
     rankThirds,
     groupEliminated,
+    groupLockedTop2,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -183,10 +183,15 @@ header.topbar {
   grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
   gap: 16px;
 }
-.std-scroll { overflow-x: auto; }
+/* grow so the matches block sits at the bottom — with cards in a row being equal
+   height and every group having 6 matches, the match lists line up even when one
+   group's standings is taller because of a tiebreak note. */
+.std-scroll { overflow-x: auto; flex: 1 1 auto; }
 .std-scroll::-webkit-scrollbar { height: 6px; }
 .std-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 6px; }
 .group-card {
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, rgba(255,255,255,0.015), transparent 120px), var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);

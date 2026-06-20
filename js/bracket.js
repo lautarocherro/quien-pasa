@@ -53,6 +53,7 @@
     opts = opts || {};
     const complete = opts.groupComplete || {};      // { gid: true } when all 6 group matches have a result
     const allComplete = !!opts.allGroupsComplete;    // every group decided -> thirds + Annexe C are final
+    const locked = opts.lockedPos || {};            // { gid: { p1, p2 } } positions already mathematically settled
 
     const pos = (g, i) => {
       const r = standings.get(g);
@@ -74,15 +75,16 @@
     // not yet complete — the team there can still change. No winners are guessed.
     const i18n = (k, a) => (T ? (a !== undefined ? T.t(k, a) : T.t(k)) : k);
 
+    const lock = (g) => locked[g] || {};
     function resolveR32(slot) {
       if (slot.t === 1) {
         const tm = pos(slot.g, 0);
-        if (tm) return teamSlot(tm, '1' + slot.g, !complete[slot.g]);
+        if (tm) return teamSlot(tm, '1' + slot.g, !complete[slot.g] && lock(slot.g).p1 !== tm.id);
         return { placeholder: i18n('ph_winner', slot.g), seed: '1' + slot.g };
       }
       if (slot.t === 2) {
         const tm = pos(slot.g, 1);
-        if (tm) return teamSlot(tm, '2' + slot.g, !complete[slot.g]);
+        if (tm) return teamSlot(tm, '2' + slot.g, !complete[slot.g] && lock(slot.g).p2 !== tm.id);
         return { placeholder: i18n('ph_runner', slot.g), seed: '2' + slot.g };
       }
       // third-placed slot (depends on the full cross-group ranking)
