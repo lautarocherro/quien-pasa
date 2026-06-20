@@ -220,6 +220,69 @@
     return sorted.map((t, idx) => ({ ...t, rank: idx + 1, qualifies: idx < advancing }));
   }
 
+  /**
+   * Mathematical elimination within a group. A team is "eliminated" when it can
+   * no longer finish in the group's TOP 3 in any completion of the remaining
+   * matches — i.e. it is guaranteed to finish 4th, so it can be neither a top-2
+   * team nor a best third.
+   *
+   * The test is OPTIMISTIC for the team (so it never produces a false positive):
+   * the team is given wins in all its remaining games, and a rival only counts as
+   * "ahead" when it beats the team on points, or is level on points but ahead on
+   * head-to-head points — both things the team cannot overturn with goals. All
+   * goal-difference / goals / fair-play / ranking tiebreaks are assumed to go the
+   * team's way. If even then 3+ rivals are guaranteed ahead in every scenario,
+   * the team truly cannot reach the top 3.
+   *
+   * Returns Set<teamId> of eliminated teams.
+   */
+  function groupEliminated(teamIds, groupMatches, opts) {
+    const out = new Set();
+    for (const T of teamIds) {
+      if (!canReachTop3(T, teamIds, groupMatches)) out.add(T);
+    }
+    return out;
+  }
+
+  function canReachTop3(T, teamIds, groupMatches) {
+    const fixed = [];
+    const remaining = [];
+    for (const m of groupMatches) {
+      if (m.played) fixed.push({ home: m.home, away: m.away, played: true, homeGoals: +m.homeGoals || 0, awayGoals: +m.awayGoals || 0 });
+      else remaining.push(m);
+    }
+    // The team wins its own remaining games (best case for it).
+    const tWins = remaining.filter((m) => m.home === T || m.away === T)
+      .map((m) => ({ home: m.home, away: m.away, played: true, homeGoals: m.home === T ? 1 : 0, awayGoals: m.away === T ? 1 : 0 }));
+    const others = remaining.filter((m) => m.home !== T && m.away !== T);
+
+    const combos = Math.pow(3, others.length);
+    for (let c = 0; c < combos; c++) {
+      const sim = [];
+      let x = c;
+      for (let k = 0; k < others.length; k++) {
+        const o = x % 3; x = Math.floor(x / 3);
+        const m = others[k];
+        // 0 = home win, 1 = draw, 2 = away win (nominal goals; only the result matters here).
+        sim.push({ home: m.home, away: m.away, played: true, homeGoals: o === 0 ? 1 : 0, awayGoals: o === 2 ? 1 : 0 });
+      }
+      const scenario = fixed.concat(tWins, sim);
+      const stats = computeStats(scenario, teamIds);
+      const ptsT = stats.get(T).points;
+      const tiedIds = teamIds.filter((id) => stats.get(id).points === ptsT);
+      const h2h = headToHead(tiedIds, scenario);
+      const h2hT = h2h.get(T).points;
+      let ahead = 0;
+      for (const id of teamIds) {
+        if (id === T) continue;
+        const p = stats.get(id).points;
+        if (p > ptsT || (p === ptsT && h2h.get(id).points > h2hT)) ahead++;
+      }
+      if (ahead <= 2) return true;   // a path to the top 3 exists
+    }
+    return false;                    // guaranteed 4th -> eliminated
+  }
+
   global.WCEngine = {
     FAIRPLAY,
     blankStats,
@@ -227,5 +290,6 @@
     headToHead,
     rankGroup,
     rankThirds,
+    groupEliminated,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

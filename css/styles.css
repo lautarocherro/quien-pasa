@@ -261,6 +261,17 @@ tr.q-winner .pos { background: var(--winner); color: #042230; }
 tr.q-runner .pos { background: var(--runner); color: #11182b; }
 tr.q-third  .pos { background: var(--accent-2); color: #2a1c00; }
 tr.eliminated { opacity: 0.5; }
+/* Mathematically eliminated: clearer than the dimmed 4th-place row. */
+tr.dead { opacity: 1; }
+tr.dead .pos { background: var(--danger); color: #2a0007; }
+tr.dead .tname { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 1px; }
+tr.dead .rank-chip { display: none; }   /* ranking tiebreak is moot once eliminated; frees room for the OUT tag */
+.elim-tag {
+  flex: 0 0 auto; margin-left: 2px;
+  font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--danger); background: rgba(255, 92, 114, 0.15);
+  border: 1px solid rgba(255, 92, 114, 0.45); border-radius: 5px; padding: 1px 5px;
+}
 td.pts { font-weight: 800; color: var(--text); }
 /* tiebreak note between two teams level on points */
 tr.tb-row td { padding: 0 4px 6px; border-bottom: 1px solid var(--row-line); }
@@ -451,6 +462,15 @@ td.edge-cell { min-width: 240px; }
   color: var(--muted); margin: 18px 4px 8px;
 }
 .fix-day:first-child { margin-top: 2px; }
+.fix-old { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 6px; }
+.fix-old summary {
+  cursor: pointer; list-style: none; user-select: none;
+  font-size: 13px; font-weight: 700; color: var(--muted); padding: 10px 2px;
+}
+.fix-old summary::-webkit-details-marker { display: none; }
+.fix-old summary::before { content: '▸ '; }
+.fix-old[open] summary::before { content: '▾ '; }
+.fix-old summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .fix {
   background: var(--panel);
   border: 1px solid var(--line);

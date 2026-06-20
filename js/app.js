@@ -218,16 +218,19 @@
     });
   }
 
-  function standingsRow(r, i, gid, qThirds) {
+  function standingsRow(r, i, gid, qThirds, dead) {
     const s = r.stats;
     let cls = '';
     if (i === 0) cls = 'q-winner';
     else if (i === 1) cls = 'q-runner';
     else if (i === 2) cls = qThirds.has(gid) ? 'q-third' : 'eliminated';
     else cls = 'eliminated';
+    const isDead = dead && dead.has(s.teamId);
+    if (isDead) cls += ' dead';
     const rank = WCDATA.fifaRank[r.team.id];
+    const tag = isDead ? `<span class="elim-tag" title="${t('elim_tip')}">${t('elim_tag')}</span>` : '';
     return `<tr class="${cls}">
-      <td class="left"><div class="team-cell"><span class="pos">${i + 1}</span><span class="flag">${r.team.flag || ''}</span><span class="tname">${tn(r.team)}</span><span class="rank-chip" title="${t('tip_rk')}">#${rank}</span></div></td>
+      <td class="left"><div class="team-cell"><span class="pos">${i + 1}</span><span class="flag">${r.team.flag || ''}</span><span class="tname">${tn(r.team)}</span><span class="rank-chip" title="${t('tip_rk')}">#${rank}</span>${tag}</div></td>
       <td>${s.played}</td><td>${s.won}</td><td>${s.drawn}</td><td>${s.lost}</td>
       <td>${s.gf}</td><td>${s.ga}</td><td>${s.gd > 0 ? '+' + s.gd : s.gd}</td>
       <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
@@ -267,9 +270,11 @@
 
   // Standings rows + a tiebreak note inserted between teams level on points.
   function standingsBody(ranked, gid, qThirds, gm) {
+    const ids = ranked.map((r) => r.stats.teamId);
+    const dead = WCEngine.groupEliminated(ids, gm, ENGINE_OPTS());
     let html = '';
     ranked.forEach((r, i) => {
-      html += standingsRow(r, i, gid, qThirds);
+      html += standingsRow(r, i, gid, qThirds, dead);
       const next = ranked[i + 1];
       if (next && r.stats.points === next.stats.points) {
         const why = groupEdge(r, next, ranked, gm);
@@ -722,9 +727,15 @@
     if (!el) return;
     const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
     const all = Object.values(LIVE_FIX).filter((u) => u.date && teamsById.get(u.home) && teamsById.get(u.away));
-    // Live + upcoming first (soonest first); finished results below (most recent first).
-    const upcoming = all.filter((u) => u.state !== 'post').sort((x, y) => new Date(x.date) - new Date(y.date));
-    const results = all.filter((u) => u.state === 'post').sort((x, y) => new Date(y.date) - new Date(x.date));
+    // Recent results (yesterday + today) stay in the main timeline alongside live
+    // and upcoming, in chronological order, so a just-finished game keeps its place
+    // instead of vanishing. Older results are tucked into a collapsed section.
+    const startYesterday = new Date(); startYesterday.setHours(0, 0, 0, 0);
+    startYesterday.setDate(startYesterday.getDate() - 1);
+    const cut = startYesterday.getTime();
+    const isOld = (u) => u.state === 'post' && new Date(u.date).getTime() < cut;
+    const main = all.filter((u) => !isOld(u)).sort((x, y) => new Date(x.date) - new Date(y.date));
+    const older = all.filter(isOld).sort((x, y) => new Date(y.date) - new Date(x.date));
     const dayList = (arr) => {
       let s = '', lastDay = '';
       arr.forEach((u) => {
@@ -738,9 +749,10 @@
       });
       return s;
     };
-    let html = '';
-    if (upcoming.length) html += `<div class="fix-sec">${t('fix_upcoming')}</div>` + dayList(upcoming);
-    if (results.length) html += `<div class="fix-sec">${t('fix_results')}</div>` + dayList(results);
+    let html = dayList(main);
+    if (older.length) {
+      html += `<details class="fix-old"><summary>${t('fix_earlier', older.length)}</summary>${dayList(older)}</details>`;
+    }
     el.innerHTML = html;
   }
 
