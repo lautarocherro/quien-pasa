@@ -226,45 +226,77 @@
    * matches — i.e. it is guaranteed to finish 4th, so it can be neither a top-2
    * team nor a best third.
    *
-   * The test is OPTIMISTIC for the team (so it never produces a false positive):
-   * the team is given wins in all its remaining games, and a rival only counts as
-   * "ahead" when it beats the team on points, or is level on points but ahead on
-   * head-to-head points — both things the team cannot overturn with goals. All
-   * goal-difference / goals / fair-play / ranking tiebreaks are assumed to go the
-   * team's way. If even then 3+ rivals are guaranteed ahead in every scenario,
-   * the team truly cannot reach the top 3.
+   * Exact method: enumerate the remaining results AND scorelines that the team
+   * cannot control, give the team uncapped wins in its own games (so it wins every
+   * goal-based tiebreak it can still influence — this keeps the test from ever
+   * producing a false positive), and rank each completion with the real Article-13
+   * procedure. If the team never reaches the top 3 in any completion, it is out.
+   * The full ranker is used (not a points/head-to-head shortcut), so eliminations
+   * settled by head-to-head or overall goal difference are caught too.
+   *
+   * When the team cannot control too many matches to enumerate their scorelines,
+   * fall back to a cheaper but still sound head-to-head-points test (this only
+   * happens early in the group when nobody can actually be eliminated yet).
    *
    * Returns Set<teamId> of eliminated teams.
    */
+  const ELIM_MAXG = 8;        // goal range (0..8) for the matches the team can't control
+  const ELIM_BIGWIN = 50;     // the team's own wins dominate every goal-based tiebreak
+  const ELIM_CAP = 20000;     // scenario ceiling before using the cheaper sound fallback
+
   function groupEliminated(teamIds, groupMatches, opts) {
     const out = new Set();
     for (const T of teamIds) {
-      if (!canReachTop3(T, teamIds, groupMatches)) out.add(T);
+      if (!canReachTop3(T, teamIds, groupMatches, opts)) out.add(T);
     }
     return out;
   }
 
-  function canReachTop3(T, teamIds, groupMatches) {
-    const fixed = [];
-    const remaining = [];
+  function splitMatches(T, groupMatches) {
+    const fixed = [], tGames = [], others = [];
     for (const m of groupMatches) {
       if (m.played) fixed.push({ home: m.home, away: m.away, played: true, homeGoals: +m.homeGoals || 0, awayGoals: +m.awayGoals || 0 });
-      else remaining.push(m);
+      else if (m.home === T || m.away === T) tGames.push(m);
+      else others.push(m);
     }
-    // The team wins its own remaining games (best case for it).
-    const tWins = remaining.filter((m) => m.home === T || m.away === T)
-      .map((m) => ({ home: m.home, away: m.away, played: true, homeGoals: m.home === T ? 1 : 0, awayGoals: m.away === T ? 1 : 0 }));
-    const others = remaining.filter((m) => m.home !== T && m.away !== T);
+    return { fixed, tGames, others };
+  }
 
+  function canReachTop3(T, teamIds, groupMatches, opts) {
+    const { fixed, tGames, others } = splitMatches(T, groupMatches);
+    const G = ELIM_MAXG + 1, per = G * G;
+    const total = Math.pow(per, others.length);
+    if (total > ELIM_CAP) return canReachTop3Optimistic(T, teamIds, fixed, tGames, others, opts);
+    // The team wins its own remaining games by a dominant margin.
+    const tWins = tGames.map((m) => ({ home: m.home, away: m.away, played: true,
+      homeGoals: m.home === T ? ELIM_BIGWIN : 0, awayGoals: m.away === T ? ELIM_BIGWIN : 0 }));
+    for (let s = 0; s < total; s++) {
+      const sim = []; let x = s;
+      for (let k = 0; k < others.length; k++) {
+        const code = x % per; x = Math.floor(x / per);
+        sim.push({ home: others[k].home, away: others[k].away, played: true, homeGoals: Math.floor(code / G), awayGoals: code % G });
+      }
+      const scenario = fixed.concat(tWins, sim);
+      const stats = computeStats(scenario, teamIds);
+      const ranked = rankGroup(teamIds, stats, scenario, opts);
+      if (ranked[0].stats.teamId === T || ranked[1].stats.teamId === T || ranked[2].stats.teamId === T) return true;
+    }
+    return false;              // never reaches the top 3 -> eliminated
+  }
+
+  // Cheaper sound fallback (used only when there are too many uncontrolled matches
+  // to enumerate scorelines — i.e. early in the group, where nobody is out yet).
+  // Counts a rival as ahead only on points or head-to-head points; optimistic on
+  // every goal-based tiebreak, so it never false-positives (may under-flag).
+  function canReachTop3Optimistic(T, teamIds, fixed, tGames, others, opts) {
+    const tWins = tGames.map((m) => ({ home: m.home, away: m.away, played: true,
+      homeGoals: m.home === T ? 1 : 0, awayGoals: m.away === T ? 1 : 0 }));
     const combos = Math.pow(3, others.length);
     for (let c = 0; c < combos; c++) {
-      const sim = [];
-      let x = c;
+      const sim = []; let x = c;
       for (let k = 0; k < others.length; k++) {
         const o = x % 3; x = Math.floor(x / 3);
-        const m = others[k];
-        // 0 = home win, 1 = draw, 2 = away win (nominal goals; only the result matters here).
-        sim.push({ home: m.home, away: m.away, played: true, homeGoals: o === 0 ? 1 : 0, awayGoals: o === 2 ? 1 : 0 });
+        sim.push({ home: others[k].home, away: others[k].away, played: true, homeGoals: o === 0 ? 1 : 0, awayGoals: o === 2 ? 1 : 0 });
       }
       const scenario = fixed.concat(tWins, sim);
       const stats = computeStats(scenario, teamIds);
@@ -278,9 +310,9 @@
         const p = stats.get(id).points;
         if (p > ptsT || (p === ptsT && h2h.get(id).points > h2hT)) ahead++;
       }
-      if (ahead <= 2) return true;   // a path to the top 3 exists
+      if (ahead <= 2) return true;
     }
-    return false;                    // guaranteed 4th -> eliminated
+    return false;
   }
 
   global.WCEngine = {

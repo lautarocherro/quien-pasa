@@ -727,15 +727,16 @@
     if (!el) return;
     const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
     const all = Object.values(LIVE_FIX).filter((u) => u.date && teamsById.get(u.home) && teamsById.get(u.away));
-    // Recent results (yesterday + today) stay in the main timeline alongside live
-    // and upcoming, in chronological order, so a just-finished game keeps its place
+    // Live + upcoming first (the point of a "next games" view), soonest first.
+    // Then recent results (yesterday + today) so just-finished games stay visible
     // instead of vanishing. Older results are tucked into a collapsed section.
     const startYesterday = new Date(); startYesterday.setHours(0, 0, 0, 0);
     startYesterday.setDate(startYesterday.getDate() - 1);
     const cut = startYesterday.getTime();
-    const isOld = (u) => u.state === 'post' && new Date(u.date).getTime() < cut;
-    const main = all.filter((u) => !isOld(u)).sort((x, y) => new Date(x.date) - new Date(y.date));
-    const older = all.filter(isOld).sort((x, y) => new Date(y.date) - new Date(x.date));
+    const t0 = (u) => new Date(u.date).getTime();
+    const upcoming = all.filter((u) => u.state !== 'post').sort((x, y) => t0(x) - t0(y));
+    const recent = all.filter((u) => u.state === 'post' && t0(u) >= cut).sort((x, y) => t0(y) - t0(x));
+    const older = all.filter((u) => u.state === 'post' && t0(u) < cut).sort((x, y) => t0(y) - t0(x));
     const dayList = (arr) => {
       let s = '', lastDay = '';
       arr.forEach((u) => {
@@ -749,7 +750,9 @@
       });
       return s;
     };
-    let html = dayList(main);
+    let html = '';
+    if (upcoming.length) html += `<div class="fix-sec">${t('fix_upcoming')}</div>` + dayList(upcoming);
+    if (recent.length) html += `<div class="fix-sec">${t('fix_recent')}</div>` + dayList(recent);
     if (older.length) {
       html += `<details class="fix-old"><summary>${t('fix_earlier', older.length)}</summary>${dayList(older)}</details>`;
     }
