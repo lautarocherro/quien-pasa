@@ -19,17 +19,21 @@
 <body>
   <div class="app">
     <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="fixtures" data-i18n="tab_fixtures">Fixtures</button>
-      <button class="tab" data-view="groups" data-i18n="tab_groups">Groups</button>
-      <button class="tab" data-view="thirds" data-i18n="tab_thirds">Best 3rd-Placed</button>
-      <button class="tab" data-view="bracket" data-i18n="tab_bracket">Knockout Bracket</button>
-      <button class="tab" data-view="rules" data-i18n="tab_rules">Tiebreak Rules</button>
-      <button class="tab" data-view="install" data-i18n="tab_install">Install</button>
-      <div class="lang-sel" id="langSel">
-        <button data-lang="en">EN</button>
-        <button data-lang="es">ES</button>
+      <div class="tab-group">
+        <button class="tab active" data-view="fixtures" data-i18n="tab_fixtures">Fixtures</button>
+        <button class="tab" data-view="groups" data-i18n="tab_groups">Groups</button>
+        <button class="tab" data-view="thirds" data-i18n="tab_thirds">Best 3rd-Placed</button>
+        <button class="tab" data-view="bracket" data-i18n="tab_bracket">Knockout Bracket</button>
+        <button class="tab" data-view="rules" data-i18n="tab_rules">Tiebreak Rules</button>
+        <button class="tab" data-view="install" data-i18n="tab_install">Install</button>
       </div>
-      <button id="alertToggle" class="alert-btn" title="Goal alerts (sound + notification)">🔔</button>
+      <div class="tab-tools">
+        <div class="lang-sel" id="langSel">
+          <button data-lang="en">EN</button>
+          <button data-lang="es">ES</button>
+        </div>
+        <button id="alertToggle" class="alert-btn" title="Goal alerts (sound + notification)">🔔</button>
+      </div>
     </nav>
 
     <!-- GROUPS -->

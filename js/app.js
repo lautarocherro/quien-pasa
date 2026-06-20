@@ -881,6 +881,7 @@
         tab.classList.add('active');
         $$('.view').forEach((v) => v.classList.remove('active'));
         $('#view-' + tab.dataset.view).classList.add('active');
+        tab.scrollIntoView({ block: 'nearest', inline: 'center' });
         window.scrollTo(0, 0);
       });
     });
