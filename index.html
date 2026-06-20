@@ -19,8 +19,8 @@
 <body>
   <div class="app">
     <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="groups" data-i18n="tab_groups">Groups</button>
-      <button class="tab" data-view="fixtures" data-i18n="tab_fixtures">Fixtures</button>
+      <button class="tab active" data-view="fixtures" data-i18n="tab_fixtures">Fixtures</button>
+      <button class="tab" data-view="groups" data-i18n="tab_groups">Groups</button>
       <button class="tab" data-view="thirds" data-i18n="tab_thirds">Best 3rd-Placed</button>
       <button class="tab" data-view="bracket" data-i18n="tab_bracket">Knockout Bracket</button>
       <button class="tab" data-view="rules" data-i18n="tab_rules">Tiebreak Rules</button>
@@ -33,7 +33,7 @@
     </nav>
 
     <!-- GROUPS -->
-    <section class="view active" id="view-groups">
+    <section class="view" id="view-groups">
       <div class="legend">
         <span class="key"><span class="sw" style="background:var(--winner)"></span> <span data-i18n="legend_1st">1st (advances)</span></span>
         <span class="key"><span class="sw" style="background:var(--runner)"></span> <span data-i18n="legend_2nd">2nd (advances)</span></span>
@@ -44,9 +44,13 @@
     </section>
 
     <!-- FIXTURES -->
-    <section class="view" id="view-fixtures">
+    <section class="view active" id="view-fixtures">
+      <div class="fix-filter" id="fixFilter">
+        <button data-fxmode="upcoming" class="active" data-i18n="fix_filter_upcoming">Upcoming</button>
+        <button data-fxmode="previous" data-i18n="fix_filter_previous">Previous</button>
+      </div>
       <div class="note" data-i18n="fixtures_hint">Live and upcoming matches in order. Times shown in your local timezone.</div>
-      <div id="fixturesList"></div>
+      <div id="fixturesList"><div class="fix-loading" data-i18n="fix_loading">Loading…</div></div>
     </section>
 
     <!-- THIRDS -->

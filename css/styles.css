@@ -452,9 +452,29 @@ td.edge-cell { min-width: 240px; }
 
 /* ---- Fixtures ---- */
 #fixturesList { max-width: 720px; margin: 0 auto; }
+.fix-filter {
+  width: fit-content; margin: 0 auto 14px;
+  display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+  overflow: hidden; background: var(--panel);
+}
+.fix-filter button {
+  appearance: none; border: none; background: transparent; color: var(--muted);
+  padding: 9px 20px; font-family: var(--sans); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.3px; cursor: pointer; transition: all 0.15s;
+}
+.fix-filter button + button { border-left: 1px solid var(--line); }
+.fix-filter button:hover { color: var(--text); }
+.fix-filter button.active { background: var(--accent); color: var(--accent-ink); }
+.fix-filter button:focus-visible { outline: 2px solid var(--winner); outline-offset: 2px; }
+.fix-empty, .fix-loading { text-align: center; color: var(--muted); font-size: 13px; padding: 28px 12px; }
 .fix-sec {
   font-size: 13px; font-weight: 800; letter-spacing: 0.3px; color: var(--text);
   margin: 22px 2px 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.fix-sec.live { color: var(--live); display: flex; align-items: center; gap: 7px; }
+.fix-sec.live::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--live);
+  box-shadow: 0 0 0 0 rgba(255,77,103,0.6); animation: pulse 1.6s infinite;
 }
 .fix-sec:first-child { margin-top: 4px; }
 .fix-day {

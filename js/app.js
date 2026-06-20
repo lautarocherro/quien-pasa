@@ -58,6 +58,10 @@
   // Fixtures view: ESPN data (kickoff time, venue, live state) keyed by team pair.
   const LIVE_FIX = {};
   const fixKey = (a, b) => [a, b].sort().join('-');
+  let fixMode = (function () {
+    try { return localStorage.getItem('wc2026-fixmode') === 'previous' ? 'previous' : 'upcoming'; }
+    catch (e) { return 'upcoming'; }
+  })();
 
   function init() {
     WCDATA.groups.forEach((g) => {
@@ -727,16 +731,12 @@
     if (!el) return;
     const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
     const all = Object.values(LIVE_FIX).filter((u) => u.date && teamsById.get(u.home) && teamsById.get(u.away));
-    // Live + upcoming first (the point of a "next games" view), soonest first.
-    // Then recent results (yesterday + today) so just-finished games stay visible
-    // instead of vanishing. Older results are tucked into a collapsed section.
-    const startYesterday = new Date(); startYesterday.setHours(0, 0, 0, 0);
-    startYesterday.setDate(startYesterday.getDate() - 1);
-    const cut = startYesterday.getTime();
     const t0 = (u) => new Date(u.date).getTime();
-    const upcoming = all.filter((u) => u.state !== 'post').sort((x, y) => t0(x) - t0(y));
-    const recent = all.filter((u) => u.state === 'post' && t0(u) >= cut).sort((x, y) => t0(y) - t0(x));
-    const older = all.filter((u) => u.state === 'post' && t0(u) < cut).sort((x, y) => t0(y) - t0(x));
+    // Current (live) games are always pinned on top. The filter switches the rest
+    // between upcoming (future, soonest first) and previous (results, newest first).
+    const live = all.filter((u) => u.state === 'in').sort((x, y) => t0(x) - t0(y));
+    const upcoming = all.filter((u) => u.state === 'pre').sort((x, y) => t0(x) - t0(y));
+    const previous = all.filter((u) => u.state === 'post').sort((x, y) => t0(y) - t0(x));
     const dayList = (arr) => {
       let s = '', lastDay = '';
       arr.forEach((u) => {
@@ -751,10 +751,11 @@
       return s;
     };
     let html = '';
-    if (upcoming.length) html += `<div class="fix-sec">${t('fix_upcoming')}</div>` + dayList(upcoming);
-    if (recent.length) html += `<div class="fix-sec">${t('fix_recent')}</div>` + dayList(recent);
-    if (older.length) {
-      html += `<details class="fix-old"><summary>${t('fix_earlier', older.length)}</summary>${dayList(older)}</details>`;
+    if (live.length) html += `<div class="fix-sec live">${t('fix_live_now')}</div>` + live.map(fixCard).join('');
+    if (fixMode === 'previous') {
+      html += previous.length ? dayList(previous) : `<div class="fix-empty">${t('fix_none_previous')}</div>`;
+    } else {
+      html += upcoming.length ? dayList(upcoming) : `<div class="fix-empty">${t('fix_none_upcoming')}</div>`;
     }
     el.innerHTML = html;
   }
@@ -846,6 +847,19 @@
       });
     }
     updateAlertBtn();
+
+    // Fixtures filter: switch the list between upcoming and previous (live stays on top).
+    $$('#fixFilter button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.fxmode === fixMode);
+      btn.addEventListener('click', () => {
+        if (btn.dataset.fxmode === fixMode) return;
+        fixMode = btn.dataset.fxmode;
+        try { localStorage.setItem('wc2026-fixmode', fixMode); } catch (e) {}
+        $$('#fixFilter button').forEach((b) => b.classList.toggle('active', b.dataset.fxmode === fixMode));
+        renderFixtures();
+        window.scrollTo(0, 0);
+      });
+    });
 
     // Language selector: mark the active language; change reloads in that language.
     const cur = window.WCI18N ? window.WCI18N.lang() : 'en';
