@@ -444,8 +444,11 @@
     bracket.rounds.forEach((round) => {
       const col = document.createElement('div');
       col.className = 'round-col' + (round.center ? ' center' : '') + (round.mirror ? ' mirror' : '');
+      // Title sits outside the box distribution so the match boxes can be evenly
+      // spaced and line up with their feeders (a real bracket centres each match
+      // between the two it feeds from).
       col.innerHTML = `<div class="round-title">${round.title}</div>` +
-        round.ties.map((tie) => tieEl(tie)).join('');
+        `<div class="col-body">${round.ties.map((tie) => tieEl(tie)).join('')}</div>`;
       container.appendChild(col);
     });
     renderChampion(bracket.champion);

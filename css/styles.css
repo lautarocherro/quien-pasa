@@ -432,8 +432,12 @@ td.edge-cell { min-width: 240px; }
   padding: 8px 2px;
   margin: 0 auto;
 }
-.round-col { display: flex; flex-direction: column; justify-content: space-around; gap: 7px; min-width: 116px; }
-.round-col.center { justify-content: center; min-width: 124px; }
+.round-col { display: flex; flex-direction: column; min-width: 116px; }
+.round-col.center { min-width: 124px; }
+/* the title stays pinned at the top; only the match boxes share the column height,
+   evenly spaced so each box lines up with the midpoint of its two feeders */
+.col-body { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-around; gap: 7px; }
+.round-col.center .col-body { justify-content: center; }
 .round-col.mirror .tie .slot { flex-direction: row-reverse; }
 .round-col.mirror .tie .slot .seedlbl { margin-left: 0; margin-right: auto; }
 .round-col.mirror .tie .meta { text-align: center; }
