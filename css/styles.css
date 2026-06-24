@@ -500,6 +500,7 @@ td.edge-cell { min-width: 240px; }
   border: 1px solid rgba(246, 197, 88, 0.45);
   background: linear-gradient(135deg, rgba(246, 197, 88, 0.14), var(--panel));
 }
+.champion-banner[hidden] { display: none; }   /* the class's display:flex would otherwise override [hidden] */
 .champion-banner .champ-trophy { font-size: 22px; }
 .champion-banner .champ-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent-2); font-weight: 700; }
 .champion-banner .champ-team { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: 16px; font-weight: 800; color: var(--text); }
