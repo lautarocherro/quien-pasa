@@ -96,49 +96,68 @@
       return { placeholder: i18n('ph_third', slot.pool), seed: '3rd' };
     }
 
-    const r32ByNo = {};
-    R32.forEach((m) => {
-      r32ByNo[m.no] = { home: resolveR32(m.a), away: resolveR32(m.b), meta: 'M' + m.no };
-    });
+    // Simulated knockout winners: { matchNo: winningTeamId }. The user picks who
+    // advances (not a score); winners propagate up the tree.
+    const picks = opts.knockoutPicks || {};
 
-    // Knockout ties just show which match feeds each slot — filled in only once
-    // those matches are actually played (which is beyond the group-stage data).
-    const feederTie = (no, label, extra) => {
-      const [a, b] = FEED[no];
-      return Object.assign({
-        home: { placeholder: i18n('ph_wmatch', a) },
-        away: { placeholder: i18n('ph_wmatch', b) },
-        meta: label || ('M' + no),
-      }, extra || {});
+    // resolved[no] = { home, away } participant slots for every match.
+    const resolved = {};
+    R32.forEach((m) => { resolved[m.no] = { home: resolveR32(m.a), away: resolveR32(m.b) }; });
+
+    const winnerOf = (no) => {
+      const r = resolved[no];
+      const w = r && picks[no];
+      if (!w) return null;
+      if (r.home && r.home.id === w) return r.home;
+      if (r.away && r.away.id === w) return r.away;
+      return null;                          // stale pick (participant changed) -> ignored
     };
+    const loserOf = (no) => {
+      const r = resolved[no];
+      const w = r && picks[no];
+      if (!w || !r.home || !r.away || !r.home.id || !r.away.id) return null;
+      if (r.home.id === w) return r.away;
+      if (r.away.id === w) return r.home;
+      return null;
+    };
+    const wSlot = (no) => winnerOf(no) || { placeholder: i18n('ph_wmatch', no) };
+    const lSlot = (no) => loserOf(no) || { placeholder: i18n('ph_lmatch', no) };
 
-    const r32 = (n) => r32ByNo[n];
-    const finalTie = feederTie(104, i18n('final_meta'), { final: true });
-    const thirdTie = {
-      home: { placeholder: i18n('ph_lmatch', 101) },
-      away: { placeholder: i18n('ph_lmatch', 102) },
-      meta: i18n('third_meta'),
-      small: true,
+    // Resolve feeder-fed matches in dependency order (numeric order suffices).
+    [89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102].forEach((no) => {
+      resolved[no] = { home: wSlot(FEED[no][0]), away: wSlot(FEED[no][1]) };
+    });
+    resolved[104] = { home: wSlot(101), away: wSlot(102) };      // final
+    resolved[103] = { home: lSlot(101), away: lSlot(102) };      // 3rd-place play-off
+
+    const tieOf = (no, extra) => {
+      const r = resolved[no];
+      const w = winnerOf(no);
+      return Object.assign({ no: no, home: r.home, away: r.away, winnerId: w ? w.id : null, meta: 'M' + no }, extra || {});
     };
 
     // Mirrored bracket: Round of 32 on both outer edges, converging inward to the
     // Final in the centre. Left half = Semi-final 1 (M101), right half = SF2 (M102).
     const rounds = [
-      { title: i18n('round_r32'), ties: [74, 77, 73, 75, 83, 84, 81, 82].map(r32) },
-      { title: i18n('round_r16'), ties: [89, 90, 93, 94].map((n) => feederTie(n)) },
-      { title: i18n('round_qf'),  ties: [97, 98].map((n) => feederTie(n)) },
-      { title: i18n('round_sf'),  ties: [101].map((n) => feederTie(n)) },
-      { title: i18n('round_final'), center: true, ties: [finalTie, { spacer: true }, thirdTie] },
-      { title: i18n('round_sf'),  mirror: true, ties: [102].map((n) => feederTie(n)) },
-      { title: i18n('round_qf'),  mirror: true, ties: [99, 100].map((n) => feederTie(n)) },
-      { title: i18n('round_r16'), mirror: true, ties: [91, 92, 95, 96].map((n) => feederTie(n)) },
-      { title: i18n('round_r32'), mirror: true, ties: [76, 78, 79, 80, 86, 88, 85, 87].map(r32) },
+      { title: i18n('round_r32'), ties: [74, 77, 73, 75, 83, 84, 81, 82].map((n) => tieOf(n)) },
+      { title: i18n('round_r16'), ties: [89, 90, 93, 94].map((n) => tieOf(n)) },
+      { title: i18n('round_qf'),  ties: [97, 98].map((n) => tieOf(n)) },
+      { title: i18n('round_sf'),  ties: [101].map((n) => tieOf(n)) },
+      { title: i18n('round_final'), center: true, ties: [
+        tieOf(104, { final: true, meta: i18n('final_meta') }), { spacer: true },
+        tieOf(103, { small: true, meta: i18n('third_meta') }),
+      ] },
+      { title: i18n('round_sf'),  mirror: true, ties: [102].map((n) => tieOf(n)) },
+      { title: i18n('round_qf'),  mirror: true, ties: [99, 100].map((n) => tieOf(n)) },
+      { title: i18n('round_r16'), mirror: true, ties: [91, 92, 95, 96].map((n) => tieOf(n)) },
+      { title: i18n('round_r32'), mirror: true, ties: [76, 78, 79, 80, 86, 88, 85, 87].map((n) => tieOf(n)) },
     ];
 
     const decided = Object.keys(complete).filter((g) => complete[g]).length;
     const note = i18n(allComplete ? 'bracket_note_done' : 'bracket_note_live', decided);
+    const champ = winnerOf(104);
 
-    return { note, rounds };
+    return { note, rounds, champion: champ ? { id: champ.id, name: champ.name, flag: champ.flag } : null };
   }
 
   global.WCBracket = { build, R32, FEED };

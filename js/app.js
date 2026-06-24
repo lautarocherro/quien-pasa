@@ -64,6 +64,13 @@
   })();
   const openFix = new Set();   // fixKeys of finished games the user has expanded
 
+  // Knockout simulation: { matchNo: winningTeamId } picked by the user.
+  let knockoutPicks = (function () {
+    try { return JSON.parse(localStorage.getItem('wc2026-knockout')) || {}; } catch (e) { return {}; }
+  })();
+  const saveKnockout = () => { try { localStorage.setItem('wc2026-knockout', JSON.stringify(knockoutPicks)); } catch (e) {} };
+  let lastBracket = null;      // last built bracket (for the share image)
+
   function init() {
     WCDATA.groups.forEach((g) => {
       groupsById.set(g.id, g);
@@ -428,7 +435,9 @@
       groupComplete,
       allGroupsComplete,
       lockedPos,
+      knockoutPicks,
     });
+    lastBracket = bracket;                       // kept for the share image
     note.innerHTML = bracket.note || '';
     const container = $('#bracket');
     container.innerHTML = '';
@@ -439,6 +448,162 @@
         round.ties.map((tie) => tieEl(tie)).join('');
       container.appendChild(col);
     });
+    renderChampion(bracket.champion);
+    const hasPicks = Object.keys(knockoutPicks).length > 0;
+    const resetBtn = $('#bracketReset');
+    if (resetBtn) resetBtn.disabled = !hasPicks;
+  }
+
+  function renderChampion(champ) {
+    const el = $('#championBanner');
+    if (!el) return;
+    if (!champ) { el.hidden = true; el.innerHTML = ''; return; }
+    const team = teamsById.get(champ.id);
+    el.hidden = false;
+    el.innerHTML = `<span class="champ-trophy">🏆</span><span class="champ-label">${t('champion')}</span>` +
+      `<span class="champ-team"><span class="flag">${(team && team.flag) || ''}</span>${champ.name}</span>`;
+  }
+
+  // Recompute standings + thirds and redraw only the bracket (used after a pick).
+  function rerenderBracket() {
+    const standings = computeGroupStandings();
+    renderBracket(standings, computeThirds(standings));
+  }
+
+  // -------- Share the bracket as an image --------
+  const xesc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clip = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : (s || ''));
+
+  // A clean left-to-right PNG of the simulated bracket (R32 → Final + champion).
+  function buildBracketSVG(bracket) {
+    const FEED = WCBracket.FEED;
+    const byNo = {};
+    (bracket.rounds || []).forEach((r) => r.ties.forEach((ti) => { if (ti && ti.no != null) byNo[ti.no] = ti; }));
+    // Top-to-bottom R32 order that keeps the tree from crossing.
+    const R32ORDER = [74, 77, 73, 75, 83, 84, 81, 82, 76, 78, 79, 80, 86, 88, 85, 87];
+    const idx = {}; R32ORDER.forEach((n, i) => { idx[n] = i; });
+    const LEFT = 16, TOP = 78, COLW = 150, BOXW = 132, BOXH = 42, ROW = 46;
+    const W = LEFT + 4 * COLW + BOXW + 16;
+    const H = TOP + R32ORDER.length * ROW + 54;
+    const colOf = (no) => (no <= 88 ? 0 : no <= 96 ? 1 : no <= 100 ? 2 : (no === 101 || no === 102) ? 3 : 4);
+    const yCache = {};
+    const yOf = (no) => {
+      if (yCache[no] != null) return yCache[no];
+      let y;
+      if (idx[no] != null) y = TOP + idx[no] * ROW + ROW / 2;
+      else { const f = FEED[no]; y = (yOf(f[0]) + yOf(f[1])) / 2; }
+      return (yCache[no] = y);
+    };
+    const C = { bg: '#0b0f1a', panel: '#141d30', line: '#27324c', text: '#eaf0fb', muted: '#8d99b8', accent: '#1ed79a', gold: '#f6c558', winbg: 'rgba(30,215,154,0.16)' };
+    const parts = [];
+    // connectors first (under the boxes)
+    Object.keys(FEED).forEach((noStr) => {
+      const no = +noStr; if (no === 103 || byNo[no] == null) return;
+      const cx = LEFT + colOf(no) * COLW, cy = yOf(no);
+      FEED[no].forEach((f) => {
+        if (byNo[f] == null) return;
+        const fx = LEFT + colOf(f) * COLW + BOXW, fy = yOf(f);
+        const midx = (fx + cx) / 2;
+        parts.push(`<polyline points="${fx},${fy} ${midx},${fy} ${midx},${cy} ${cx},${cy}" fill="none" stroke="${C.line}" stroke-width="1.5"/>`);
+      });
+    });
+    // boxes
+    const drawBox = (no) => {
+      const tie = byNo[no]; if (!tie) return;
+      const x = LEFT + colOf(no) * COLW, y = yOf(no) - BOXH / 2;
+      const isFinal = no === 104;
+      parts.push(`<rect x="${x}" y="${y}" width="${BOXW}" height="${BOXH}" rx="7" fill="${C.panel}" stroke="${isFinal ? C.gold : C.line}" stroke-width="${isFinal ? 1.5 : 1}"/>`);
+      const rowH = BOXH / 2;
+      [tie.home, tie.away].forEach((s, i) => {
+        const ry = y + i * rowH;
+        const cy = ry + rowH / 2 + 4;
+        const win = s && tie.winnerId && s.id === tie.winnerId;
+        if (win) parts.push(`<rect x="${x + 1}" y="${ry + (i === 0 ? 1 : 0)}" width="${BOXW - 2}" height="${rowH - 1}" rx="5" fill="${C.winbg}"/>`);
+        const label = s ? (s.placeholder ? s.placeholder : s.name) : '—';
+        const flag = (s && s.flag) ? s.flag + ' ' : '';
+        const col = win ? C.accent : (s && !s.placeholder ? C.text : C.muted);
+        const weight = win ? '700' : '500';
+        parts.push(`<text x="${x + 8}" y="${cy}" font-size="12" font-weight="${weight}" fill="${col}">${xesc(flag + clip(label, 16))}</text>`);
+      });
+    };
+    Object.keys(byNo).forEach((n) => { if (+n !== 103) drawBox(+n); });
+    // header + footer
+    const title = t('share_title');
+    const champ = bracket.champion;
+    parts.unshift(`<rect width="${W}" height="${H}" fill="${C.bg}"/>`);
+    parts.push(`<text x="${LEFT}" y="30" font-size="18" font-weight="800" fill="${C.text}">${xesc(title)}</text>`);
+    if (champ) {
+      parts.push(`<text x="${LEFT}" y="54" font-size="14" font-weight="700" fill="${C.gold}">🏆 ${xesc(t('champion'))}: ${xesc((champ.flag || '') + ' ' + champ.name)}</text>`);
+    } else {
+      parts.push(`<text x="${LEFT}" y="54" font-size="13" fill="${C.muted}">${xesc(t('share_pickhint'))}</text>`);
+    }
+    parts.push(`<text x="${W - 16}" y="${H - 16}" font-size="12" font-weight="600" text-anchor="end" fill="${C.muted}">lautarocherro.github.io/quien-pasa</text>`);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${parts.join('')}</svg>`;
+    return { svg, w: W, h: H };
+  }
+
+  function bracketToPng() {
+    const { svg, w, h } = buildBracketSVG(lastBracket || {});
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = 2;
+          const canvas = document.createElement('canvas');
+          canvas.width = w * scale; canvas.height = h * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(scale, scale);
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          canvas.toBlob((png) => {
+            if (!png) return reject(new Error('no blob'));
+            resolve(new File([png], 'quien-pasa-bracket.png', { type: 'image/png' }));
+          }, 'image/png');
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img load')); };
+      img.src = url;
+    });
+  }
+
+  function downloadBlob(file, name) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  let shareBusy = false;
+  async function shareBracket() {
+    if (shareBusy) return;
+    shareBusy = true;
+    const btn = $('#bracketShare');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = t('share_working'); }
+    const url = location.href.split('#')[0];
+    const text = t('share_text');
+    let file = null;
+    try { file = await bracketToPng(); } catch (e) { file = null; }
+    try {
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: text + '\n' + url });
+      } else if (navigator.share) {
+        if (file) downloadBlob(file, 'quien-pasa-bracket.png');
+        await navigator.share({ text: text, url: url });
+      } else {
+        if (file) downloadBlob(file, 'quien-pasa-bracket.png');
+        try { await navigator.clipboard.writeText(url); } catch (e) {}
+        if (btn) { btn.textContent = t('share_saved'); }
+      }
+    } catch (e) {
+      // AbortError = user dismissed the share sheet; anything else falls back to a download.
+      if (!(e && e.name === 'AbortError') && file) downloadBlob(file, 'quien-pasa-bracket.png');
+    } finally {
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = label || t('share_btn'); } shareBusy = false; }, 1200);
+    }
   }
 
   function tieEl(tie) {
@@ -449,9 +614,12 @@
       if (s.placeholder) {
         return `<div class="slot"><span class="tname tbd">${s.placeholder}</span></div>`;
       }
-      // Compact: flag + 3-letter code + seed; full name on hover.
+      // Compact: flag + 3-letter code + seed; full name on hover. Clickable to pick
+      // the winner (advances up the tree); the picked side is highlighted.
+      const isWin = tie.winnerId && s.id === tie.winnerId;
+      const pickable = tie.no != null;
       const title = s.provisional ? `${s.name} — provisional, can still change` : s.name;
-      return `<div class="slot" title="${title}">
+      return `<div class="slot${isWin ? ' winner' : ''}${pickable ? ' pick' : ''}"${pickable ? ` data-match="${tie.no}" data-team="${s.id}"` : ''} title="${title}">
         <span class="flag">${s.flag || ''}</span>
         <span class="tname ${s.provisional ? 'prov' : ''}">${codeFor(s.id, s.name)}</span>
         <span class="seedlbl">${s.seed || ''}</span>
@@ -910,6 +1078,28 @@
         window.scrollTo(0, 0);
       });
     });
+
+    // Knockout simulation: tap a team to pick the winner (toggles off if re-tapped).
+    const bracketEl = $('#bracket');
+    if (bracketEl) {
+      bracketEl.addEventListener('click', (e) => {
+        const sl = e.target.closest('.slot.pick');
+        if (!sl) return;
+        const no = sl.dataset.match, team = sl.dataset.team;
+        if (knockoutPicks[no] === team) delete knockoutPicks[no];
+        else knockoutPicks[no] = team;
+        saveKnockout();
+        rerenderBracket();
+      });
+    }
+    const resetBtn = $('#bracketReset');
+    if (resetBtn) resetBtn.addEventListener('click', () => {
+      knockoutPicks = {};
+      saveKnockout();
+      rerenderBracket();
+    });
+    const shareBtn = $('#bracketShare');
+    if (shareBtn) shareBtn.addEventListener('click', shareBracket);
 
     // Language selector: mark the active language; change reloads in that language.
     const cur = window.WCI18N ? window.WCI18N.lang() : 'en';
