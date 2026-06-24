@@ -603,7 +603,9 @@
     try { file = await bracketToPng(); } catch (e) { file = null; }
     try {
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: text + '\n' + url });
+        // Share the image only (the link is printed in its footer). Adding a URL
+        // here makes "Copy" put both the image and a link-preview on the clipboard.
+        await navigator.share({ files: [file] });
       } else if (navigator.share) {
         if (file) downloadBlob(file, 'quien-pasa-bracket.png');
         await navigator.share({ text: text, url: url });
