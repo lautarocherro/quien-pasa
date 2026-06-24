@@ -478,68 +478,79 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clip = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : (s || ''));
 
-  // A clean left-to-right PNG of the simulated bracket (R32 → Final + champion).
+  // A PNG of the simulated bracket mirroring the on-screen layout: Round of 32 on
+  // both outer edges converging inward to the Final (and champion) in the centre.
   function buildBracketSVG(bracket) {
     const FEED = WCBracket.FEED;
-    const byNo = {};
-    (bracket.rounds || []).forEach((r) => r.ties.forEach((ti) => { if (ti && ti.no != null) byNo[ti.no] = ti; }));
-    // Top-to-bottom R32 order that keeps the tree from crossing.
-    const R32ORDER = [74, 77, 73, 75, 83, 84, 81, 82, 76, 78, 79, 80, 86, 88, 85, 87];
-    const idx = {}; R32ORDER.forEach((n, i) => { idx[n] = i; });
-    const LEFT = 16, TOP = 78, COLW = 150, BOXW = 132, BOXH = 42, ROW = 46;
-    const W = LEFT + 4 * COLW + BOXW + 16;
-    const H = TOP + R32ORDER.length * ROW + 54;
-    const colOf = (no) => (no <= 88 ? 0 : no <= 96 ? 1 : no <= 100 ? 2 : (no === 101 || no === 102) ? 3 : 4);
+    const byNo = {}, colOf = {};
+    // Column index = position of the round in the (mirrored) rounds list.
+    (bracket.rounds || []).forEach((round, ci) => {
+      round.ties.forEach((ti) => { if (ti && ti.no != null) { byNo[ti.no] = ti; colOf[ti.no] = ci; } });
+    });
+    // Both halves share the same 8 vertical rows (top R32 box of each side aligns).
+    const rowIdx = {};
+    [74, 77, 73, 75, 83, 84, 81, 82].forEach((n, i) => { rowIdx[n] = i; });
+    [76, 78, 79, 80, 86, 88, 85, 87].forEach((n, i) => { rowIdx[n] = i; });
+
+    const LEFT = 16, TOP = 100, COLW = 140, BOXW = 124, BOXH = 46, ROW = 52, NCOL = 9;
+    const W = LEFT * 2 + (NCOL - 1) * COLW + BOXW;
+    const H = TOP + 8 * ROW + 58;
+    const centerY = TOP + 4 * ROW;          // the Final sits on the vertical centre
+    const xOf = (no) => LEFT + colOf[no] * COLW;
     const yCache = {};
     const yOf = (no) => {
       if (yCache[no] != null) return yCache[no];
       let y;
-      if (idx[no] != null) y = TOP + idx[no] * ROW + ROW / 2;
+      if (rowIdx[no] != null) y = TOP + rowIdx[no] * ROW + ROW / 2;
+      else if (no === 103) y = centerY + 96;       // 3rd-place play-off, below the Final
       else { const f = FEED[no]; y = (yOf(f[0]) + yOf(f[1])) / 2; }
       return (yCache[no] = y);
     };
     const C = { bg: '#0b0f1a', panel: '#141d30', line: '#27324c', text: '#eaf0fb', muted: '#8d99b8', accent: '#1ed79a', gold: '#f6c558', winbg: 'rgba(30,215,154,0.16)' };
     const parts = [];
-    // connectors first (under the boxes)
-    Object.keys(FEED).forEach((noStr) => {
-      const no = +noStr; if (no === 103 || byNo[no] == null) return;
-      const cx = LEFT + colOf(no) * COLW, cy = yOf(no);
-      FEED[no].forEach((f) => {
-        if (byNo[f] == null) return;
-        const fx = LEFT + colOf(f) * COLW + BOXW, fy = yOf(f);
-        const midx = (fx + cx) / 2;
-        parts.push(`<polyline points="${fx},${fy} ${midx},${fy} ${midx},${cy} ${cx},${cy}" fill="none" stroke="${C.line}" stroke-width="1.5"/>`);
+    // connectors (drawn first, under the boxes); direction depends on which side feeds in
+    Object.keys(byNo).forEach((noStr) => {
+      const no = +noStr, f = FEED[no];
+      if (!f) return;
+      const cc = colOf[no], cx = xOf(no), cy = yOf(no);
+      f.forEach((fn) => {
+        if (byNo[fn] == null) return;
+        const fy = yOf(fn);
+        const left = colOf[fn] < cc;                 // feeder to the left vs right of the child
+        const x1 = left ? xOf(fn) + BOXW : xOf(fn);
+        const x2 = left ? cx : cx + BOXW;
+        const midx = (x1 + x2) / 2;
+        parts.push(`<polyline points="${x1},${fy} ${midx},${fy} ${midx},${cy} ${x2},${cy}" fill="none" stroke="${C.line}" stroke-width="1.5"/>`);
       });
     });
     // boxes
     const drawBox = (no) => {
       const tie = byNo[no]; if (!tie) return;
-      const x = LEFT + colOf(no) * COLW, y = yOf(no) - BOXH / 2;
+      const x = xOf(no), y = yOf(no) - BOXH / 2;
       const isFinal = no === 104;
-      parts.push(`<rect x="${x}" y="${y}" width="${BOXW}" height="${BOXH}" rx="7" fill="${C.panel}" stroke="${isFinal ? C.gold : C.line}" stroke-width="${isFinal ? 1.5 : 1}"/>`);
+      parts.push(`<rect x="${x}" y="${y}" width="${BOXW}" height="${BOXH}" rx="7" fill="${C.panel}" stroke="${isFinal ? C.gold : C.line}" stroke-width="${isFinal ? 1.6 : 1}"/>`);
       const rowH = BOXH / 2;
       [tie.home, tie.away].forEach((s, i) => {
         const ry = y + i * rowH;
-        const cy = ry + rowH / 2 + 4;
+        const ty = ry + rowH / 2 + 4;
         const win = s && tie.winnerId && s.id === tie.winnerId;
         if (win) parts.push(`<rect x="${x + 1}" y="${ry + (i === 0 ? 1 : 0)}" width="${BOXW - 2}" height="${rowH - 1}" rx="5" fill="${C.winbg}"/>`);
         const label = s ? (s.placeholder ? s.placeholder : s.name) : '—';
         const flag = (s && s.flag) ? s.flag + ' ' : '';
         const col = win ? C.accent : (s && !s.placeholder ? C.text : C.muted);
-        const weight = win ? '700' : '500';
-        parts.push(`<text x="${x + 8}" y="${cy}" font-size="12" font-weight="${weight}" fill="${col}">${xesc(flag + clip(label, 16))}</text>`);
+        parts.push(`<text x="${x + 8}" y="${ty}" font-size="11.5" font-weight="${win ? '700' : '500'}" fill="${col}">${xesc(flag + clip(label, 15))}</text>`);
       });
     };
-    Object.keys(byNo).forEach((n) => { if (+n !== 103) drawBox(+n); });
-    // header + footer
-    const title = t('share_title');
+    Object.keys(byNo).forEach((n) => drawBox(+n));
+    // header (centred) + footer
+    const cxw = W / 2;
     const champ = bracket.champion;
     parts.unshift(`<rect width="${W}" height="${H}" fill="${C.bg}"/>`);
-    parts.push(`<text x="${LEFT}" y="30" font-size="18" font-weight="800" fill="${C.text}">${xesc(title)}</text>`);
+    parts.push(`<text x="${cxw}" y="38" font-size="20" font-weight="800" text-anchor="middle" fill="${C.text}">${xesc(t('share_title'))}</text>`);
     if (champ) {
-      parts.push(`<text x="${LEFT}" y="54" font-size="14" font-weight="700" fill="${C.gold}">🏆 ${xesc(t('champion'))}: ${xesc((champ.flag || '') + ' ' + champ.name)}</text>`);
+      parts.push(`<text x="${cxw}" y="68" font-size="15" font-weight="700" text-anchor="middle" fill="${C.gold}">🏆 ${xesc(t('champion'))}: ${xesc((champ.flag || '') + ' ' + champ.name)}</text>`);
     } else {
-      parts.push(`<text x="${LEFT}" y="54" font-size="13" fill="${C.muted}">${xesc(t('share_pickhint'))}</text>`);
+      parts.push(`<text x="${cxw}" y="68" font-size="13" text-anchor="middle" fill="${C.muted}">${xesc(t('share_pickhint'))}</text>`);
     }
     parts.push(`<text x="${W - 16}" y="${H - 16}" font-size="12" font-weight="600" text-anchor="end" fill="${C.muted}">lautarocherro.github.io/quien-pasa</text>`);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${parts.join('')}</svg>`;
