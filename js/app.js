@@ -205,9 +205,9 @@
         <div class="std-scroll"><table class="standings">
           <thead><tr>
             <th class="left">${t('col_team')}</th>
-            <th title="${t('tip_r32')}">${t('col_r32')}</th>
             <th>${t('col_p')}</th><th>${t('col_w')}</th><th>${t('col_d')}</th><th>${t('col_l')}</th><th>${t('col_gf')}</th><th>${t('col_ga')}</th><th>${t('col_gd')}</th>
             <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th><th>${t('col_pts')}</th>
+            <th title="${t('tip_r32')}">${t('col_r32')}</th>
           </tr></thead>
           <tbody>
             ${standingsBody(ranked, g.id, qThirds, gm, dead, r32opp)}
@@ -288,11 +288,11 @@
     }
     return `<tr class="${cls}">
       <td class="left"><div class="team-cell"><span class="pos">${i + 1}</span><span class="flag">${r.team.flag || ''}</span><span class="tname">${tn(r.team)}</span><span class="rank-chip" title="${t('tip_rk')}">#${rank}</span>${tag}</div></td>
-      ${r32cell}
       <td>${s.played}</td><td>${s.won}</td><td>${s.drawn}</td><td>${s.lost}</td>
       <td>${s.gf}</td><td>${s.ga}</td><td>${s.gd > 0 ? '+' + s.gd : s.gd}</td>
       <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
       <td class="pts">${s.points}</td>
+      ${r32cell}
     </tr>`;
   }
 
