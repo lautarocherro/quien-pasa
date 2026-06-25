@@ -348,26 +348,52 @@
     return min === Infinity ? 0 : min;
   }
 
+  // Does third-record A rank strictly above B by the Article-13 thirds criteria?
+  function thirdAbove(A, B) {
+    if (A.points !== B.points) return A.points > B.points;
+    if (A.gd !== B.gd) return A.gd > B.gd;
+    if (A.gf !== B.gf) return A.gf > B.gf;
+    if (A.fairPlay !== B.fairPlay) return A.fairPlay > B.fairPlay;
+    return A.rank < B.rank;            // lower FIFA ranking number = better
+  }
+
+  // The weakest 3rd-place record a group can still end up with. For a finished
+  // group this is its actual third. For an unfinished group the 3rd-placed team's
+  // points are bounded below (W/D/L) but its goal difference can be made arbitrarily
+  // negative (lose by any margin) without changing the points, so we treat GD/goals
+  // as -Infinity — a safe under-estimate that never over-counts rivals "above" T.
+  function weakestThird(teamIds, groupMatches, opts) {
+    const remaining = groupMatches.filter((m) => !m.played);
+    if (remaining.length === 0) {
+      const stats = computeStats(groupMatches, teamIds);
+      const third = rankGroup(teamIds, stats, groupMatches, opts)[2].stats;
+      return { points: third.points, gd: third.gd, gf: third.gf, fairPlay: third.fairPlay, rank: rankOf(opts, third.teamId) };
+    }
+    return { points: minThirdPoints(teamIds, groupMatches), gd: -Infinity, gf: -Infinity, fairPlay: -Infinity, rank: Infinity };
+  }
+
   /**
    * Whole-tournament elimination. Combines two sound checks and returns the Set of
    * every eliminated team id:
    *   1) within-group: a team that can no longer finish in its group's top 3.
    *   2) best-third: a team whose only route is 3rd place, but whose BEST possible
    *      3rd-place finish still cannot be among the 8 best thirds — because at least
-   *      8 other groups are guaranteed a 3rd-placed team with more points than the
-   *      team's maximum (points decide; the team is given an unbounded goal
-   *      difference for its best case, so it wins every points tie). Never a false
-   *      positive: the team is given its best case throughout.
+   *      8 other groups are guaranteed a 3rd-placed team ranking above it. Thirds are
+   *      compared on the full criteria (points, then GD, goals, fair-play, ranking).
+   *      A team that still has games is given an unbounded goal difference (it can
+   *      win by any margin) so it wins every points tie; a team whose games are done
+   *      is compared on its locked record. Never a false positive: the team is given
+   *      its best case and each rival group its weakest possible third.
    *
    * groupList: [{ id, teamIds, matches }].  opts.advancingThirds defaults to 8.
    */
   function tournamentEliminated(groupList, opts) {
     const out = new Set();
     const advancing = (opts && opts.advancingThirds) || 8;
-    const minThird = {};
+    const weakest = {};
     groupList.forEach((g) => {
       groupEliminated(g.teamIds, g.matches, opts).forEach((id) => out.add(id));
-      minThird[g.id] = minThirdPoints(g.teamIds, g.matches);
+      weakest[g.id] = weakestThird(g.teamIds, g.matches, opts);
     });
     groupList.forEach((g) => {
       const stats = computeStats(g.matches, g.teamIds);
@@ -375,9 +401,14 @@
         if (out.has(T)) return;                                          // already out (can't reach top 3)
         if (canReachRank(T, g.teamIds, g.matches, opts, 2)) return;       // has a top-2 route -> safe
         const remT = g.matches.filter((m) => !m.played && (m.home === T || m.away === T)).length;
-        const tMaxPts = stats.get(T).points + 3 * remT;                  // best points T can finish 3rd on
+        const sT = stats.get(T);
+        // T's best possible 3rd-place record: more games left -> unbounded GD (wins
+        // every points tie); no games left -> its locked record.
+        const best = remT > 0
+          ? { points: sT.points + 3 * remT, gd: Infinity, gf: Infinity, fairPlay: Infinity, rank: -Infinity }
+          : { points: sT.points, gd: sT.gd, gf: sT.gf, fairPlay: sT.fairPlay, rank: rankOf(opts, T) };
         let above = 0;
-        groupList.forEach((G) => { if (G.id !== g.id && minThird[G.id] > tMaxPts) above++; });
+        groupList.forEach((G) => { if (G.id !== g.id && thirdAbove(weakest[G.id], best)) above++; });
         if (above >= advancing) out.add(T);                              // can't crack the top-8 thirds
       });
     });
