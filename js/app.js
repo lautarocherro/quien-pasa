@@ -187,6 +187,7 @@
     const grid = $('#groupsGrid');
     const qThirds = qualifiedSet(thirds);
     const dead = computeEliminated();
+    const r32opp = computeR32Opponents(standings, thirds);
     grid.innerHTML = '';
     for (const g of WCDATA.groups) {
       const ranked = standings.get(g.id);
@@ -204,11 +205,12 @@
         <div class="std-scroll"><table class="standings">
           <thead><tr>
             <th class="left">${t('col_team')}</th>
+            <th title="${t('tip_r32')}">${t('col_r32')}</th>
             <th>${t('col_p')}</th><th>${t('col_w')}</th><th>${t('col_d')}</th><th>${t('col_l')}</th><th>${t('col_gf')}</th><th>${t('col_ga')}</th><th>${t('col_gd')}</th>
             <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th><th>${t('col_pts')}</th>
           </tr></thead>
           <tbody>
-            ${standingsBody(ranked, g.id, qThirds, gm, dead)}
+            ${standingsBody(ranked, g.id, qThirds, gm, dead, r32opp)}
           </tbody>
         </table></div>
         <div class="matches">
@@ -235,12 +237,13 @@
   function refreshStandings(standings, thirds) {
     const qThirds = qualifiedSet(thirds);
     const dead = computeEliminated();
+    const r32opp = computeR32Opponents(standings, thirds);
     for (const g of WCDATA.groups) {
       const card = document.querySelector(`.group-card[data-group="${g.id}"]`);
       if (!card) continue;
       const ranked = standings.get(g.id);
       const gm = matchesForGroup(g.id);
-      card.querySelector('.standings tbody').innerHTML = standingsBody(ranked, g.id, qThirds, gm, dead);
+      card.querySelector('.standings tbody').innerHTML = standingsBody(ranked, g.id, qThirds, gm, dead, r32opp);
       const meta = card.querySelector('.gmeta');
       if (meta) meta.textContent = t('played_count', gm.filter((m) => m.played).length, gm.length);
     }
@@ -261,7 +264,7 @@
     });
   }
 
-  function standingsRow(r, i, gid, qThirds, dead) {
+  function standingsRow(r, i, gid, qThirds, dead, r32opp) {
     const s = r.stats;
     let cls = '';
     if (i === 0) cls = 'q-winner';
@@ -272,8 +275,20 @@
     if (isDead) cls += ' dead';
     const rank = WCDATA.fifaRank[r.team.id];
     const tag = isDead ? `<span class="elim-tag" title="${t('elim_tip')}">${t('elim_tag')}</span>` : '';
+    // R32 opponent: the team this side would play in the Round of 32 (provisional
+    // from current standings), or ✗ for sides that aren't currently advancing.
+    const opp = r32opp ? r32opp.get(s.teamId) : null;
+    let r32cell;
+    if (opp && opp.id) {
+      r32cell = `<td class="r32"><span class="r32-flag" title="${t('fix_vs')} ${opp.name}${opp.seed ? ' · ' + opp.seed : ''}">${opp.flag || ''}</span></td>`;
+    } else if (opp) {
+      r32cell = `<td class="r32"><span class="r32-tbd" title="${opp.placeholder || ''}">?</span></td>`;
+    } else {
+      r32cell = `<td class="r32"><span class="r32-x" title="${t('r32_out')}">✗</span></td>`;
+    }
     return `<tr class="${cls}">
       <td class="left"><div class="team-cell"><span class="pos">${i + 1}</span><span class="flag">${r.team.flag || ''}</span><span class="tname">${tn(r.team)}</span><span class="rank-chip" title="${t('tip_rk')}">#${rank}</span>${tag}</div></td>
+      ${r32cell}
       <td>${s.played}</td><td>${s.won}</td><td>${s.drawn}</td><td>${s.lost}</td>
       <td>${s.gf}</td><td>${s.ga}</td><td>${s.gd > 0 ? '+' + s.gd : s.gd}</td>
       <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
@@ -313,17 +328,31 @@
 
   // Standings rows + a tiebreak note inserted between teams level on points.
   // `dead` is the tournament-wide eliminated set (computed once per render).
-  function standingsBody(ranked, gid, qThirds, gm, dead) {
+  function standingsBody(ranked, gid, qThirds, gm, dead, r32opp) {
     let html = '';
     ranked.forEach((r, i) => {
-      html += standingsRow(r, i, gid, qThirds, dead);
+      html += standingsRow(r, i, gid, qThirds, dead, r32opp);
       const next = ranked[i + 1];
       if (next && r.stats.points === next.stats.points) {
         const why = groupEdge(r, next, ranked, gm);
-        if (why) html += `<tr class="tb-row"><td colspan="11"><span class="tb-box">${why}</span></td></tr>`;
+        if (why) html += `<tr class="tb-row"><td colspan="12"><span class="tb-box">${why}</span></td></tr>`;
       }
     });
     return html;
+  }
+
+  // Map each team to the team it would face in the Round of 32 (provisional, from
+  // current standings + Annexe C). Teams not currently advancing aren't in the map.
+  function computeR32Opponents(standings, thirds) {
+    const map = new Map();
+    if (!window.WCBracket || !WCBracket.build) return map;
+    const br = WCBracket.build(standings, thirds, teamsById, {});
+    (br.rounds || []).forEach((round) => (round.ties || []).forEach((tie) => {
+      if (!tie || tie.no == null || tie.no < 73 || tie.no > 88) return;   // R32 ties only
+      if (tie.home && tie.home.id) map.set(tie.home.id, tie.away);
+      if (tie.away && tie.away.id) map.set(tie.away.id, tie.home);
+    }));
+    return map;
   }
 
   function matchRow(m) {
