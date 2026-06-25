@@ -147,6 +147,15 @@
     return WCEngine.rankThirds(thirds, WCDATA.advancingThirds, ENGINE_OPTS());
   }
 
+  // Eliminated teams across the whole tournament: can't reach the group top 3, OR
+  // can only reach 3rd but that 3rd can't be one of the 8 best thirds.
+  function computeEliminated() {
+    const groupList = WCDATA.groups.map((g) => ({
+      id: g.id, teamIds: g.teams.map((tm) => tm.id), matches: matchesForGroup(g.id),
+    }));
+    return WCEngine.tournamentEliminated(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
+  }
+
   // -------- Rendering --------
   function renderAll() {
     const standings = computeGroupStandings();
@@ -164,6 +173,7 @@
   function renderGroups(standings, thirds) {
     const grid = $('#groupsGrid');
     const qThirds = qualifiedSet(thirds);
+    const dead = computeEliminated();
     grid.innerHTML = '';
     for (const g of WCDATA.groups) {
       const ranked = standings.get(g.id);
@@ -185,7 +195,7 @@
             <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th><th>${t('col_pts')}</th>
           </tr></thead>
           <tbody>
-            ${standingsBody(ranked, g.id, qThirds, gm)}
+            ${standingsBody(ranked, g.id, qThirds, gm, dead)}
           </tbody>
         </table></div>
         <div class="matches">
@@ -204,12 +214,13 @@
   // value the user is typing isn't wiped while the match is still half-filled.
   function refreshStandings(standings, thirds) {
     const qThirds = qualifiedSet(thirds);
+    const dead = computeEliminated();
     for (const g of WCDATA.groups) {
       const card = document.querySelector(`.group-card[data-group="${g.id}"]`);
       if (!card) continue;
       const ranked = standings.get(g.id);
       const gm = matchesForGroup(g.id);
-      card.querySelector('.standings tbody').innerHTML = standingsBody(ranked, g.id, qThirds, gm);
+      card.querySelector('.standings tbody').innerHTML = standingsBody(ranked, g.id, qThirds, gm, dead);
       const meta = card.querySelector('.gmeta');
       if (meta) meta.textContent = t('played_count', gm.filter((m) => m.played).length, gm.length);
     }
@@ -281,9 +292,8 @@
   }
 
   // Standings rows + a tiebreak note inserted between teams level on points.
-  function standingsBody(ranked, gid, qThirds, gm) {
-    const ids = ranked.map((r) => r.stats.teamId);
-    const dead = WCEngine.groupEliminated(ids, gm, ENGINE_OPTS());
+  // `dead` is the tournament-wide eliminated set (computed once per render).
+  function standingsBody(ranked, gid, qThirds, gm, dead) {
     let html = '';
     ranked.forEach((r, i) => {
       html += standingsRow(r, i, gid, qThirds, dead);

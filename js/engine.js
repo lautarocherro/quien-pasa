@@ -262,11 +262,14 @@
     return { fixed, tGames, others };
   }
 
-  function canReachTop3(T, teamIds, groupMatches, opts) {
+  const canReachTop3 = (T, teamIds, groupMatches, opts) => canReachRank(T, teamIds, groupMatches, opts, 3);
+
+  // Can team T still finish in the top `maxRank` of its group in some completion?
+  function canReachRank(T, teamIds, groupMatches, opts, maxRank) {
     const { fixed, tGames, others } = splitMatches(T, groupMatches);
     const G = ELIM_MAXG + 1, per = G * G;
     const total = Math.pow(per, others.length);
-    if (total > ELIM_CAP) return canReachTop3Optimistic(T, teamIds, fixed, tGames, others, opts);
+    if (total > ELIM_CAP) return canReachRankOptimistic(T, teamIds, fixed, tGames, others, opts, maxRank);
     // The team wins its own remaining games by a dominant margin.
     const tWins = tGames.map((m) => ({ home: m.home, away: m.away, played: true,
       homeGoals: m.home === T ? ELIM_BIGWIN : 0, awayGoals: m.away === T ? ELIM_BIGWIN : 0 }));
@@ -279,16 +282,16 @@
       const scenario = fixed.concat(tWins, sim);
       const stats = computeStats(scenario, teamIds);
       const ranked = rankGroup(teamIds, stats, scenario, opts);
-      if (ranked[0].stats.teamId === T || ranked[1].stats.teamId === T || ranked[2].stats.teamId === T) return true;
+      for (let i = 0; i < maxRank; i++) if (ranked[i].stats.teamId === T) return true;
     }
-    return false;              // never reaches the top 3 -> eliminated
+    return false;              // never reaches the target rank
   }
 
   // Cheaper sound fallback (used only when there are too many uncontrolled matches
   // to enumerate scorelines — i.e. early in the group, where nobody is out yet).
   // Counts a rival as ahead only on points or head-to-head points; optimistic on
   // every goal-based tiebreak, so it never false-positives (may under-flag).
-  function canReachTop3Optimistic(T, teamIds, fixed, tGames, others, opts) {
+  function canReachRankOptimistic(T, teamIds, fixed, tGames, others, opts, maxRank) {
     const tWins = tGames.map((m) => ({ home: m.home, away: m.away, played: true,
       homeGoals: m.home === T ? 1 : 0, awayGoals: m.away === T ? 1 : 0 }));
     const combos = Math.pow(3, others.length);
@@ -310,9 +313,75 @@
         const p = stats.get(id).points;
         if (p > ptsT || (p === ptsT && h2h.get(id).points > h2hT)) ahead++;
       }
-      if (ahead <= 2) return true;
+      if (ahead <= maxRank - 1) return true;
     }
     return false;
+  }
+
+  // The fewest points the 3rd-placed team of a group can finish on, over every
+  // completion of its remaining matches. Points depend only on W/D/L, so this is
+  // a cheap exact enumeration. Used for cross-group "best third" elimination.
+  function minThirdPoints(teamIds, groupMatches) {
+    const remaining = [], pts0 = {};
+    teamIds.forEach((id) => { pts0[id] = 0; });
+    groupMatches.forEach((m) => {
+      if (!m.played) { remaining.push(m); return; }
+      const hg = +m.homeGoals || 0, ag = +m.awayGoals || 0;
+      if (hg > ag) pts0[m.home] += 3; else if (hg < ag) pts0[m.away] += 3; else { pts0[m.home]++; pts0[m.away]++; }
+    });
+    const n = remaining.length, combos = Math.pow(3, n);
+    // Defensive only: a 4-team group has <= 6 matches (3^6 = 729), so this never
+    // fires here. If it ever did, -Infinity makes the group not count as "above".
+    if (combos > 6561) return -Infinity;
+    let min = Infinity;
+    for (let c = 0; c < combos; c++) {
+      const pts = Object.assign({}, pts0);
+      let x = c;
+      for (let k = 0; k < n; k++) {
+        const o = x % 3; x = Math.floor(x / 3);
+        const m = remaining[k];
+        if (o === 0) pts[m.home] += 3; else if (o === 1) pts[m.away] += 3; else { pts[m.home]++; pts[m.away]++; }
+      }
+      const sorted = teamIds.map((id) => pts[id]).sort((a, b) => b - a);
+      if (sorted[2] < min) min = sorted[2];
+    }
+    return min === Infinity ? 0 : min;
+  }
+
+  /**
+   * Whole-tournament elimination. Combines two sound checks and returns the Set of
+   * every eliminated team id:
+   *   1) within-group: a team that can no longer finish in its group's top 3.
+   *   2) best-third: a team whose only route is 3rd place, but whose BEST possible
+   *      3rd-place finish still cannot be among the 8 best thirds — because at least
+   *      8 other groups are guaranteed a 3rd-placed team with more points than the
+   *      team's maximum (points decide; the team is given an unbounded goal
+   *      difference for its best case, so it wins every points tie). Never a false
+   *      positive: the team is given its best case throughout.
+   *
+   * groupList: [{ id, teamIds, matches }].  opts.advancingThirds defaults to 8.
+   */
+  function tournamentEliminated(groupList, opts) {
+    const out = new Set();
+    const advancing = (opts && opts.advancingThirds) || 8;
+    const minThird = {};
+    groupList.forEach((g) => {
+      groupEliminated(g.teamIds, g.matches, opts).forEach((id) => out.add(id));
+      minThird[g.id] = minThirdPoints(g.teamIds, g.matches);
+    });
+    groupList.forEach((g) => {
+      const stats = computeStats(g.matches, g.teamIds);
+      g.teamIds.forEach((T) => {
+        if (out.has(T)) return;                                          // already out (can't reach top 3)
+        if (canReachRank(T, g.teamIds, g.matches, opts, 2)) return;       // has a top-2 route -> safe
+        const remT = g.matches.filter((m) => !m.played && (m.home === T || m.away === T)).length;
+        const tMaxPts = stats.get(T).points + 3 * remT;                  // best points T can finish 3rd on
+        let above = 0;
+        groupList.forEach((G) => { if (G.id !== g.id && minThird[G.id] > tMaxPts) above++; });
+        if (above >= advancing) out.add(T);                              // can't crack the top-8 thirds
+      });
+    });
+    return out;
   }
 
   /**
@@ -360,6 +429,7 @@
     rankGroup,
     rankThirds,
     groupEliminated,
+    tournamentEliminated,
     groupLockedTop2,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
