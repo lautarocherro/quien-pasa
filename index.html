@@ -38,11 +38,14 @@
 
     <!-- GROUPS -->
     <section class="view" id="view-groups">
-      <div class="legend">
-        <span class="key"><span class="sw" style="background:var(--winner)"></span> <span data-i18n="legend_1st">1st (advances)</span></span>
-        <span class="key"><span class="sw" style="background:var(--runner)"></span> <span data-i18n="legend_2nd">2nd (advances)</span></span>
-        <span class="key"><span class="sw" style="background:var(--accent-2)"></span> <span data-i18n="legend_3rd">3rd (best 8 advance)</span></span>
-        <span class="key"><span class="sw" style="background:var(--danger)"></span> <span data-i18n="legend_out">Eliminated</span></span>
+      <div class="groups-bar">
+        <div class="legend">
+          <span class="key"><span class="sw" style="background:var(--winner)"></span> <span data-i18n="legend_1st">1st (advances)</span></span>
+          <span class="key"><span class="sw" style="background:var(--runner)"></span> <span data-i18n="legend_2nd">2nd (advances)</span></span>
+          <span class="key"><span class="sw" style="background:var(--accent-2)"></span> <span data-i18n="legend_3rd">3rd (best 8 advance)</span></span>
+          <span class="key"><span class="sw" style="background:var(--danger)"></span> <span data-i18n="legend_out">Eliminated</span></span>
+        </div>
+        <button id="groupsReset" class="bk-btn" data-i18n="groups_reset">Reset predictions</button>
       </div>
       <div class="groups-grid" id="groupsGrid"></div>
     </section>

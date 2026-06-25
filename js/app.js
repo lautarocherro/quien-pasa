@@ -106,6 +106,19 @@
       return m;
     });
   }
+  // Clear the user's entered scores for upcoming matches (real and live results
+  // are untouched), then re-render everything.
+  function resetGroupPicks() {
+    let changed = false;
+    MATCHES.forEach((m) => {
+      if (m.played && !m.finished && !m.live) {
+        m.played = false; m.homeGoals = 0; m.awayGoals = 0; changed = true;
+      }
+    });
+    if (!changed) return;
+    renderAll();   // re-renders groups/thirds/bracket and persists the cleared state
+  }
+
   // Persist only the user's predictions for non-finished matches.
   function saveState() {
     try {
@@ -208,6 +221,13 @@
       inp.addEventListener('change', onScoreChange);
       inp.addEventListener('focus', (e) => e.target.select());
     });
+    updateGroupsResetBtn();
+  }
+
+  // Enable the reset button only when the user has entered at least one prediction.
+  function updateGroupsResetBtn() {
+    const rb = $('#groupsReset');
+    if (rb) rb.disabled = !MATCHES.some((m) => m.played && !m.finished && !m.live);
   }
 
   // Update standings tables in place WITHOUT rebuilding the match inputs, so a
@@ -365,6 +385,7 @@
     refreshStandings(standings, thirds);
     renderThirds(thirds);
     renderBracket(standings, thirds);
+    updateGroupsResetBtn();
     saveState();
   }
 
@@ -1126,6 +1147,9 @@
     });
     const shareBtn = $('#bracketShare');
     if (shareBtn) shareBtn.addEventListener('click', shareBracket);
+
+    const groupsReset = $('#groupsReset');
+    if (groupsReset) groupsReset.addEventListener('click', resetGroupPicks);
 
     // Language selector: mark the active language; change reloads in that language.
     const cur = window.WCI18N ? window.WCI18N.lang() : 'en';
