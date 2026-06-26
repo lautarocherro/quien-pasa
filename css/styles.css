@@ -419,6 +419,8 @@ table.thirds tr.cutline td { border-bottom: 2px dashed rgba(246, 197, 88, 0.55);
 .alive-dot.out { background: var(--danger); }
 .scorers-tbl tr.sc-out td.left .tname { color: var(--muted); }
 .scorers-tbl tr.sc-out .flag { opacity: 0.55; }
+.wc-total { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent-2); }
+.wc-na { color: var(--muted); font-weight: 600; }
 .rank-num { font-weight: 800; color: var(--accent-2); }
 td.edge-cell { min-width: 240px; }
 .edge-box {

@@ -1240,19 +1240,26 @@
       .sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player));
     if (!list.length) { el.innerHTML = `<div class="fix-empty">${t('scorers_empty')}</div>`; return; }
     const dead = computeEliminated();
+    const wcBase = window.WCAllTimeGoals || {};
+    const wcNorm = window.wcNormName || ((s) => (s || '').toLowerCase().trim());
     let rank = 0, prev = -1;
     el.innerHTML = `<table class="thirds scorers-tbl"><thead><tr>
-      <th>#</th><th class="left">${t('col_player')}</th><th class="left">${t('col_team')}</th><th>${t('col_goals')}</th>
+      <th>#</th><th class="left">${t('col_player')}</th><th class="left">${t('col_team')}</th><th>${t('col_goals')}</th><th title="${t('tip_wc_total')}">${t('col_wc_total')}</th>
     </tr></thead><tbody>${list.map((r, i) => {
       if (r.goals !== prev) { rank = i + 1; prev = r.goals; }
       const tm = teamsById.get(r.teamId);
       const out = dead.has(r.teamId);
       const dot = `<span class="alive-dot ${out ? 'out' : 'in'}" title="${out ? t('scorer_out') : t('scorer_in')}"></span>`;
       const pens = r.pens ? ` <span class="sc-pen" title="${t('scorers_pens')}">${r.pens}P</span>` : '';
+      const base = wcBase[wcNorm(r.player)];
+      const allTime = base === undefined
+        ? `<span class="wc-na" title="${t('tip_wc_na')}">—</span>`
+        : String(base + r.goals);
       return `<tr class="${out ? 'sc-out' : ''}"><td class="rank-num">${rank}</td>
         <td class="left">${r.player}</td>
         <td class="left"><div class="team-cell">${dot}<span class="flag">${tm.flag || ''}</span><span class="tname">${tn(tm)}</span></div></td>
-        <td class="pts">${r.goals}${pens}</td></tr>`;
+        <td class="pts">${r.goals}${pens}</td>
+        <td class="wc-total">${allTime}</td></tr>`;
     }).join('')}</tbody></table>`;
   }
 

@@ -153,6 +153,8 @@
         kind: kind,
         team: espn2my[String(e.team && e.team.id)] || null,
         player: (ath && (ath.shortName || ath.displayName)) || '',
+        athleteId: (ath && ath.id) || '',
+        fullName: (ath && (ath.fullName || ath.displayName)) || '',
         note: note,
       });
     });
