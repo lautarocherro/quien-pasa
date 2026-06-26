@@ -281,6 +281,11 @@ tr.q-runner .pos { background: var(--runner); color: #11182b; }
 tr.q-third  .pos { background: var(--accent-2); color: #2a1c00; }
 tr.eliminated { opacity: 0.5; }
 td.r32 { text-align: center; }
+/* matches played in the thirds table: 3 = record final, fewer = still to play */
+td.pl { font-weight: 700; }
+td.pl3 { color: var(--accent); }     /* all 3 played — final */
+td.pl2 { color: var(--accent-2); }   /* one game still to come */
+td.pl1 { color: var(--muted); }      /* early */
 .r32-flag { font-size: 15px; cursor: default; }
 .r32-x { color: var(--danger); font-weight: 700; opacity: 0.7; }
 .r32-tbd { color: var(--muted); font-weight: 700; }

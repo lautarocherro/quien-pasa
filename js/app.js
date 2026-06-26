@@ -464,7 +464,7 @@
             <td class="rank-num">${row.rank}</td>
             <td class="left"><div class="team-cell"><span class="flag">${row.team.flag || ''}</span><span class="tname">${tn(row.team)}</span></div></td>
             <td class="left">${row.group}</td>
-            <td>${s.played}</td>
+            <td class="pl pl${s.played >= 3 ? '3' : s.played === 2 ? '2' : '1'}" title="${t('tip_played')}">${s.played}</td>
             <td class="pts">${s.points}</td>
             <td>${s.gd > 0 ? '+' + s.gd : s.gd}</td>
             <td>${s.gf}</td><td>${s.ga}</td>
