@@ -446,6 +446,7 @@
     tbl.innerHTML = `
       <thead><tr>
         <th>#</th><th class="left">${t('col_team')}</th><th class="left">${t('col_grp')}</th>
+        <th title="${t('tip_played')}">${t('col_p')}</th>
         <th>${t('col_pts')}</th><th>${t('col_gd')}</th><th>${t('col_gf')}</th><th>${t('col_ga')}</th>
         <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th>
         <th title="${t('tip_fp')}">${t('col_fp')}</th>
@@ -463,6 +464,7 @@
             <td class="rank-num">${row.rank}</td>
             <td class="left"><div class="team-cell"><span class="flag">${row.team.flag || ''}</span><span class="tname">${tn(row.team)}</span></div></td>
             <td class="left">${row.group}</td>
+            <td>${s.played}</td>
             <td class="pts">${s.points}</td>
             <td>${s.gd > 0 ? '+' + s.gd : s.gd}</td>
             <td>${s.gf}</td><td>${s.ga}</td>
