@@ -169,6 +169,14 @@
     return WCEngine.tournamentEliminated(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
   }
 
+  // Thirds that have clinched a top-8 place (guaranteed to advance whatever happens).
+  function computeClinchedThirds() {
+    const groupList = WCDATA.groups.map((g) => ({
+      id: g.id, teamIds: g.teams.map((tm) => tm.id), matches: matchesForGroup(g.id),
+    }));
+    return WCEngine.tournamentClinchedThirds(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
+  }
+
   // -------- Rendering --------
   function renderAll() {
     const standings = computeGroupStandings();
@@ -441,6 +449,7 @@
     const note = $('#thirdsNote');
     const playedTotal = MATCHES.filter((m) => m.played).length;
     note.innerHTML = t('thirds_note', WCDATA.advancingThirds, playedTotal, MATCHES.length);
+    const clinched = computeClinchedThirds();
 
     const tbl = $('#thirdsTable');
     tbl.innerHTML = `
@@ -471,7 +480,9 @@
             <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
             <td>${s.fairPlay}</td>
             <td>#${WCDATA.fifaRank[row.team.id]}</td>
-            <td><span class="badge ${row.qualifies ? 'in' : 'out'}">${row.qualifies ? t('badge_in') : t('badge_out')}</span></td>
+            <td>${clinched.has(row.team.id)
+              ? `<span class="badge clinched" title="${t('tip_clinched')}">${t('badge_clinched')}</span>`
+              : `<span class="badge ${row.qualifies ? 'in' : 'out'}">${row.qualifies ? t('badge_in') : t('badge_out')}</span>`}</td>
             <td class="left edge-cell">${edge.text ? `<span class="edge-box ${edgeCls}">${edge.text}</span>` : ''}</td>
           </tr>`;
         }).join('')}

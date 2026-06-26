@@ -321,7 +321,10 @@
   // The fewest points the 3rd-placed team of a group can finish on, over every
   // completion of its remaining matches. Points depend only on W/D/L, so this is
   // a cheap exact enumeration. Used for cross-group "best third" elimination.
-  function minThirdPoints(teamIds, groupMatches) {
+  // The fewest (max=false) or most (max=true) points a group's 3rd-placed team can
+  // finish on, over every completion. Points depend only on W/D/L — a cheap exact
+  // enumeration.
+  function thirdPointsBound(teamIds, groupMatches, max) {
     const remaining = [], pts0 = {};
     teamIds.forEach((id) => { pts0[id] = 0; });
     groupMatches.forEach((m) => {
@@ -330,10 +333,9 @@
       if (hg > ag) pts0[m.home] += 3; else if (hg < ag) pts0[m.away] += 3; else { pts0[m.home]++; pts0[m.away]++; }
     });
     const n = remaining.length, combos = Math.pow(3, n);
-    // Defensive only: a 4-team group has <= 6 matches (3^6 = 729), so this never
-    // fires here. If it ever did, -Infinity makes the group not count as "above".
-    if (combos > 6561) return -Infinity;
-    let min = Infinity;
+    // Defensive only: a 4-team group has <= 6 matches (3^6 = 729), so this never fires.
+    if (combos > 6561) return max ? Infinity : -Infinity;
+    let bound = max ? -Infinity : Infinity;
     for (let c = 0; c < combos; c++) {
       const pts = Object.assign({}, pts0);
       let x = c;
@@ -342,11 +344,13 @@
         const m = remaining[k];
         if (o === 0) pts[m.home] += 3; else if (o === 1) pts[m.away] += 3; else { pts[m.home]++; pts[m.away]++; }
       }
-      const sorted = teamIds.map((id) => pts[id]).sort((a, b) => b - a);
-      if (sorted[2] < min) min = sorted[2];
+      const third = teamIds.map((id) => pts[id]).sort((a, b) => b - a)[2];
+      if (max ? third > bound : third < bound) bound = third;
     }
-    return min === Infinity ? 0 : min;
+    return bound;
   }
+  const minThirdPoints = (teamIds, gm) => thirdPointsBound(teamIds, gm, false);
+  const maxThirdPoints = (teamIds, gm) => thirdPointsBound(teamIds, gm, true);
 
   // Does third-record A rank strictly above B by the Article-13 thirds criteria?
   function thirdAbove(A, B) {
@@ -370,6 +374,45 @@
       return { points: third.points, gd: third.gd, gf: third.gf, fairPlay: third.fairPlay, rank: rankOf(opts, third.teamId) };
     }
     return { points: minThirdPoints(teamIds, groupMatches), gd: -Infinity, gf: -Infinity, fairPlay: -Infinity, rank: Infinity };
+  }
+
+  // The strongest 3rd-place record a group can still end up with — mirror of
+  // weakestThird. For an unfinished group, GD/goals are unbounded above (+Infinity)
+  // at the max possible 3rd-place points, so it never under-counts rivals.
+  function bestThird(teamIds, groupMatches, opts) {
+    const remaining = groupMatches.filter((m) => !m.played);
+    if (remaining.length === 0) {
+      const stats = computeStats(groupMatches, teamIds);
+      const third = rankGroup(teamIds, stats, groupMatches, opts)[2].stats;
+      return { points: third.points, gd: third.gd, gf: third.gf, fairPlay: third.fairPlay, rank: rankOf(opts, third.teamId) };
+    }
+    return { points: maxThirdPoints(teamIds, groupMatches), gd: Infinity, gf: Infinity, fairPlay: Infinity, rank: -Infinity };
+  }
+
+  /**
+   * Thirds that have CLINCHED a top-8 (best-third) place — guaranteed to advance no
+   * matter the remaining results. Only considers teams whose group is finished (so
+   * their 3rd-place record is settled); each rival group is given its strongest
+   * possible third. If at most advancing-1 (7) rival groups could possibly field a
+   * third above this team, it can finish no worse than 8th among the thirds, so it
+   * is in. Never a false positive: the team gets its real record and rivals their
+   * best case. Returns Set<teamId>.
+   */
+  function tournamentClinchedThirds(groupList, opts) {
+    const advancing = (opts && opts.advancingThirds) || 8;
+    const best = {};
+    groupList.forEach((g) => { best[g.id] = bestThird(g.teamIds, g.matches, opts); });
+    const out = new Set();
+    groupList.forEach((g) => {
+      if (g.matches.some((m) => !m.played)) return;        // candidate's record must be settled
+      const stats = computeStats(g.matches, g.teamIds);
+      const third = rankGroup(g.teamIds, stats, g.matches, opts)[2].stats;
+      const trec = { points: third.points, gd: third.gd, gf: third.gf, fairPlay: third.fairPlay, rank: rankOf(opts, third.teamId) };
+      let couldBeAbove = 0;
+      groupList.forEach((G) => { if (G.id !== g.id && thirdAbove(best[G.id], trec)) couldBeAbove++; });
+      if (couldBeAbove <= advancing - 1) out.add(third.teamId);
+    });
+    return out;
   }
 
   /**
@@ -461,6 +504,7 @@
     rankThirds,
     groupEliminated,
     tournamentEliminated,
+    tournamentClinchedThirds,
     groupLockedTop2,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

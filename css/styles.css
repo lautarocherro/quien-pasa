@@ -410,6 +410,8 @@ table.thirds tr.cutline td { border-bottom: 2px dashed rgba(246, 197, 88, 0.55);
 }
 .badge.in { background: rgba(30, 215, 154, 0.16); color: var(--accent); }
 .badge.out { background: rgba(255, 92, 114, 0.15); color: var(--danger); }
+.badge.clinched { background: var(--accent); color: var(--accent-ink); white-space: nowrap; box-shadow: 0 2px 10px -3px rgba(30, 215, 154, 0.7); }
+tr.in:has(.badge.clinched) { background: rgba(30, 215, 154, 0.06); }
 .rank-num { font-weight: 800; color: var(--accent-2); }
 td.edge-cell { min-width: 240px; }
 .edge-box {
