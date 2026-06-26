@@ -420,7 +420,6 @@ table.thirds tr.cutline td { border-bottom: 2px dashed rgba(246, 197, 88, 0.55);
 .scorers-tbl tr.sc-out td.left .tname { color: var(--muted); }
 .scorers-tbl tr.sc-out .flag { opacity: 0.55; }
 .wc-total { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent-2); }
-.wc-na { color: var(--muted); font-weight: 600; }
 .rank-num { font-weight: 800; color: var(--accent-2); }
 td.edge-cell { min-width: 240px; }
 .edge-box {
@@ -554,6 +553,8 @@ td.edge-cell { min-width: 240px; }
 .fix-filter button.active { background: var(--accent); color: var(--accent-ink); }
 .fix-filter button:focus-visible { outline: 2px solid var(--winner); outline-offset: 2px; }
 .fix-empty, .fix-loading { text-align: center; color: var(--muted); font-size: 13px; padding: 28px 12px; }
+/* keep the fixtures hint the same width as the search box, filter and match list */
+#view-fixtures .note { max-width: 720px; margin-left: auto; margin-right: auto; }
 .fix-sec {
   font-size: 13px; font-weight: 800; letter-spacing: 0.3px; color: var(--text);
   margin: 22px 2px 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line);

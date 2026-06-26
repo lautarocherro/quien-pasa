@@ -1251,10 +1251,10 @@
       const out = dead.has(r.teamId);
       const dot = `<span class="alive-dot ${out ? 'out' : 'in'}" title="${out ? t('scorer_out') : t('scorer_in')}"></span>`;
       const pens = r.pens ? ` <span class="sc-pen" title="${t('scorers_pens')}">${r.pens}P</span>` : '';
-      const base = wcBase[wcNorm(r.player)];
-      const allTime = base === undefined
-        ? `<span class="wc-na" title="${t('tip_wc_na')}">—</span>`
-        : String(base + r.goals);
+      // Players not in the data file are assumed to have no prior World Cup goals,
+      // so their all-time total is just this tournament's count.
+      const base = wcBase[wcNorm(r.player)] || 0;
+      const allTime = String(base + r.goals);
       return `<tr class="${out ? 'sc-out' : ''}"><td class="rank-num">${rank}</td>
         <td class="left">${r.player}</td>
         <td class="left"><div class="team-cell">${dot}<span class="flag">${tm.flag || ''}</span><span class="tname">${tn(tm)}</span></div></td>

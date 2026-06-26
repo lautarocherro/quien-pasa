@@ -7,12 +7,12 @@
  * needs the pre-2026 figure and never has to change mid-tournament.
  *
  * Editing:
+ *   - Only players who scored at a PREVIOUS World Cup need an entry. Anyone not
+ *     listed is assumed to have 0 prior World Cup goals, so their all-time total
+ *     just equals this tournament's count (no "—" is shown).
  *   - Add or fix any entry. Names are matched case- AND accent-insensitively,
  *     so "Vinícius Júnior", "Vinicius Junior" and "VINICIUS JUNIOR" all match.
  *   - Use the name as it shows in the Top Scorers list.
- *   - A player not listed here shows "—" in the all-time column (unknown).
- *   - A value of 0 means "has played World Cups but never scored" (or has no
- *     prior World Cup), which is different from being unlisted.
  *
  * Seeded with the well-known current scorers; extend as you like.
  * ==========================================================================*/
@@ -36,15 +36,6 @@
     'Julián Álvarez': 4,
     'Cody Gakpo': 3,
     'Vinícius Júnior': 1,
-
-    // current top scorers with no prior World Cup goals (debut or nation absent)
-    'Erling Haaland': 0,
-    'Ousmane Dembélé': 0,
-    'Jonathan David': 0,
-    'Cyle Larin': 0,
-    'Matheus Cunha': 0,
-    'Ayase Ueda': 0,
-    'Daniel Muñoz': 0,
   };
 
   const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
