@@ -174,8 +174,17 @@
   // with one game left, what each result (win/draw/lose) means for finishing top 2.
   // Points-only and sound for the "Through" label (a rival counts as possibly-above
   // on equal points). Only groups where every team has <=1 game left are shown.
+  let scnCache = { sig: null, scns: null };
   function computeScenarios(dead) {
+    // Cached by a signature of all results — the exact enumeration only re-runs when
+    // a score (real or predicted) actually changes.
+    const sig = MATCHES.map((m) => (m.played ? m.id + ':' + m.homeGoals + '-' + m.awayGoals : m.id + ':-')).join('|');
+    if (scnCache.sig === sig && scnCache.scns) return scnCache.scns;
     const out = [];
+    const opts = { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds };
+    const groupList = WCDATA.groups.map((g) => ({
+      id: g.id, teamIds: g.teams.map((tm) => tm.id), matches: matchesForGroup(g.id),
+    }));
     WCDATA.groups.forEach((g) => {
       const ids = g.teams.map((tm) => tm.id);
       const gm = matchesForGroup(g.id);
@@ -195,6 +204,14 @@
         const others = remaining.filter((m) => m !== tm);
         const res = {};
         ['W', 'D', 'L'].forEach((o) => {
+          // Exact: enumerate every completion of this group's remaining matches and
+          // rank with the full Article-13 procedure; 3rd-place finishes are tested
+          // against the other groups' best/weakest possible thirds. Sound both ways.
+          const exact = WCEngine.outcomeLabel(groupList, opts, g.id, T, o);
+          if (exact) { res[o] = exact; return; }
+          // Fallback (only if the scoreline space is too large to enumerate): a
+          // points-only model. maxGe<=1 guaranteed top 2; minGt<=1 a top-2 route
+          // remains; minGt===2 locked into 3rd (best-thirds cutoff decides); else out.
           const P = cur[T] + (o === 'W' ? 3 : o === 'D' ? 1 : 0);
           const Op = cur[O] + (o === 'W' ? 0 : o === 'D' ? 1 : 3);
           let maxGe = 0, minGt = 99;
@@ -211,12 +228,16 @@
             if (ge > maxGe) maxGe = ge;
             if (gt < minGt) minGt = gt;
           }
-          res[o] = maxGe <= 1 ? 'qualify' : minGt <= 1 ? 'inplay' : minGt <= 2 ? 'third' : 'out';
+          res[o] = maxGe <= 1 ? 'qualify'
+            : minGt <= 1 ? 'inplay'
+            : minGt === 2 ? WCEngine.thirdOutcome(groupList, opts, g.id, T, o)
+            : 'out';
         });
         teams.push({ teamId: T, through: res.L === 'qualify', res });
       });
       if (teams.length) out.push({ group: g.id, teams });
     });
+    scnCache = { sig, scns: out };
     return out;
   }
 
@@ -1210,8 +1231,8 @@
     matches.forEach((u) => {
       (goalCache[u.id] || []).forEach((e) => {
         if (e.note === 'OG' || !e.team || !teamsById.get(e.team)) return;   // own goals don't credit a scorer
-        const key = (e.player || '?') + '|' + e.team;
-        const r = tally[key] || (tally[key] = { player: e.player || '?', teamId: e.team, goals: 0, pens: 0 });
+        const key = (e.athleteId || e.player || '?') + '|' + e.team;
+        const r = tally[key] || (tally[key] = { player: e.player || '?', fullName: e.fullName || e.player || '', athleteId: e.athleteId || '', teamId: e.team, goals: 0, pens: 0 });
         r.goals++; if (e.note === 'P') r.pens++;
       });
     });

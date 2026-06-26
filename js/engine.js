@@ -459,6 +459,122 @@
   }
 
   /**
+   * Best-third fate for a team T in group `gid` that, under final-match result
+   * `outcome` ('W'|'D'|'L'), is locked into 3rd place (cannot reach the top 2).
+   * Classifies whether its 3rd-place finish could still be among the 8 best thirds:
+   *   'qualify' - guaranteed a top-8 third even in its WORST case (every other
+   *               group's BEST possible third leaves at most advancing-1 above it)
+   *   'out'     - cannot be a top-8 third even in its BEST case (at least
+   *               `advancing` other groups are guaranteed a third ranking above it)
+   *   'third'   - neither: a genuine 3rd-place chance that is not yet decided
+   *
+   * T's record is bounded by the result: a win adds 3 pts and can inflate GD/goals
+   * without limit; a draw adds 1 pt and leaves GD fixed; a loss adds 0 and can sink
+   * GD without limit. Rivals are taken at their weakest (for the 'out' test) and at
+   * their strongest (for the 'qualify' test). Sound in both directions — never a
+   * false 'out' and never a false 'qualify'.
+   */
+  function thirdOutcome(groupList, opts, gid, T, outcome) {
+    const advancing = (opts && opts.advancingThirds) || 8;
+    const g = groupList.find((x) => x.id === gid);
+    const sT = computeStats(g.matches, g.teamIds).get(T);
+    const pts = sT.points + (outcome === 'W' ? 3 : outcome === 'D' ? 1 : 0);
+    const tRank = rankOf(opts, T);
+    // Strongest 3rd-place record T can end with under this result (for the 'out' test).
+    const best = {
+      points: pts,
+      gd: outcome === 'W' ? Infinity : outcome === 'D' ? sT.gd : sT.gd - 1,
+      gf: Infinity, fairPlay: Infinity, rank: tRank,
+    };
+    // Weakest 3rd-place record T can end with under this result (for the 'qualify' test).
+    const worst = {
+      points: pts,
+      gd: outcome === 'W' ? sT.gd + 1 : outcome === 'D' ? sT.gd : -Infinity,
+      gf: outcome === 'W' ? sT.gf + 1 : sT.gf,
+      fairPlay: -Infinity, rank: tRank,
+    };
+    let guaranteedAbove = 0, possiblyAbove = 0;
+    groupList.forEach((G) => {
+      if (G.id === gid) return;
+      if (thirdAbove(weakestThird(G.teamIds, G.matches, opts), best)) guaranteedAbove++;
+      if (thirdAbove(bestThird(G.teamIds, G.matches, opts), worst)) possiblyAbove++;
+    });
+    if (guaranteedAbove >= advancing) return 'out';
+    if (possiblyAbove <= advancing - 1) return 'qualify';
+    return 'third';
+  }
+
+  /**
+   * EXACT classification of a team T's fate under final-match result `outcome`
+   * ('W'|'D'|'L'), by enumerating every scoreline of T's group's remaining matches
+   * (consistent with `outcome` for T's own match) and ranking each completion with
+   * the real Article-13 procedure. For completions where T finishes 3rd, the team's
+   * exact 3rd-place record is compared against the OTHER groups' weakest possible
+   * thirds (to know if it CAN still sneak in) and strongest possible thirds (to know
+   * if it is GUARANTEED in). Returns:
+   *   'qualify' - advances in EVERY completion (top-2, or a 3rd that always clears
+   *               the best-thirds cutoff even against rivals at their strongest)
+   *   'inplay'  - not guaranteed, but a top-2 finish is still reachable
+   *   'third'   - cannot reach top 2; only a best-third route remains, not settled
+   *   'out'     - cannot advance in any completion
+   * Returns null if the remaining scoreline space is too large to enumerate (caller
+   * falls back). Sound in both directions: never a false 'qualify', never a false 'out'.
+   */
+  function outcomeLabel(groupList, opts, gid, T, outcome) {
+    const advancing = (opts && opts.advancingThirds) || 8;
+    const g = groupList.find((x) => x.id === gid);
+    if (!g) return null;
+    const rivalsBest = [], rivalsWeak = [];
+    groupList.forEach((G) => {
+      if (G.id === gid) return;
+      rivalsBest.push(bestThird(G.teamIds, G.matches, opts));
+      rivalsWeak.push(weakestThird(G.teamIds, G.matches, opts));
+    });
+    const fixed = [], remaining = [];
+    for (const m of g.matches) {
+      if (m.played) fixed.push({ home: m.home, away: m.away, played: true, homeGoals: +m.homeGoals || 0, awayGoals: +m.awayGoals || 0 });
+      else remaining.push(m);
+    }
+    const tIdx = remaining.findIndex((m) => m.home === T || m.away === T);
+    if (tIdx < 0) return null;
+    const Gg = ELIM_MAXG + 1, per = Gg * Gg;
+    if (Math.pow(per, remaining.length) > ELIM_CAP) return null;     // too big — caller falls back
+    const others = remaining.filter((_, i) => i !== tIdx);
+    const tm = remaining[tIdx], Thome = tm.home === T, trank = rankOf(opts, T);
+    const oTotal = Math.pow(per, others.length);
+    let canAdv = false, mustAdv = true, canTop2 = false, seen = false;
+    for (let th = 0; th < per; th++) {
+      const hg = Math.floor(th / Gg), ag = th % Gg;
+      const r = hg === ag ? 'D' : ((hg > ag) === Thome ? 'W' : 'L');
+      if (r !== outcome) continue;
+      const tMatch = { home: tm.home, away: tm.away, played: true, homeGoals: hg, awayGoals: ag };
+      for (let s = 0; s < oTotal; s++) {
+        const sim = fixed.concat([tMatch]); let x = s;
+        for (let k = 0; k < others.length; k++) {
+          const code = x % per; x = Math.floor(x / per);
+          sim.push({ home: others[k].home, away: others[k].away, played: true, homeGoals: Math.floor(code / Gg), awayGoals: code % Gg });
+        }
+        const ranked = rankGroup(g.teamIds, computeStats(sim, g.teamIds), sim, opts);
+        let pos = 0; for (; pos < ranked.length; pos++) if (ranked[pos].stats.teamId === T) break;
+        seen = true;
+        if (pos <= 1) { canAdv = true; canTop2 = true; continue; }    // top 2 -> advances
+        if (pos >= 3) { mustAdv = false; continue; }                  // 4th -> fails this completion
+        const s3 = ranked[2].stats;                                   // T is 3rd: exact record
+        const rec = { points: s3.points, gd: s3.gd, gf: s3.gf, fairPlay: s3.fairPlay, rank: trank };
+        let wAbove = 0, bAbove = 0;
+        for (const rr of rivalsWeak) if (thirdAbove(rr, rec)) wAbove++;
+        for (const rr of rivalsBest) if (thirdAbove(rr, rec)) bAbove++;
+        if (wAbove <= advancing - 1) canAdv = true;                   // some global completion qualifies
+        if (bAbove > advancing - 1) mustAdv = false;                  // could be bumped out
+      }
+    }
+    if (!seen) return null;
+    if (!canAdv) return 'out';
+    if (mustAdv) return 'qualify';
+    return canTop2 ? 'inplay' : 'third';
+  }
+
+  /**
    * Which of the top-2 group positions are LOCKED: a position is locked when only
    * one team can occupy it across every completion of the remaining matches
    * (results AND scorelines enumerated, ranked with the real Article-13 procedure).
@@ -561,6 +677,8 @@
     groupEliminated,
     tournamentEliminated,
     tournamentClinchedThirds,
+    thirdOutcome,
+    outcomeLabel,
     advanceProbabilities,
     groupLockedTop2,
   };
