@@ -519,6 +519,16 @@ td.edge-cell { min-width: 240px; }
 
 /* ---- Fixtures ---- */
 #fixturesList { max-width: 720px; margin: 0 auto; }
+.fix-search { max-width: 720px; margin: 0 auto 12px; }
+.fix-search input {
+  width: 100%; box-sizing: border-box;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 10px 16px; font-family: var(--sans); font-size: 14px;
+  outline: none; transition: border-color 0.15s ease;
+}
+.fix-search input::placeholder { color: var(--muted); }
+.fix-search input:focus { border-color: var(--accent); }
 .fix-filter {
   width: fit-content; margin: 0 auto 14px;
   display: flex; border: 1px solid var(--line); border-radius: 999px;

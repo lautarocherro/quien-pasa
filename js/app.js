@@ -63,6 +63,7 @@
     catch (e) { return 'upcoming'; }
   })();
   const openFix = new Set();   // fixKeys of finished games the user has expanded
+  let fixSearch = '';          // fixtures country search query
 
   // Knockout simulation: { matchNo: winningTeamId } picked by the user.
   let knockoutPicks = (function () {
@@ -1017,11 +1018,6 @@
     const lang = window.WCI18N ? window.WCI18N.lang() : 'en';
     const all = Object.values(LIVE_FIX).filter((u) => u.date && teamsById.get(u.home) && teamsById.get(u.away));
     const t0 = (u) => new Date(u.date).getTime();
-    // Current (live) games are always pinned on top. The filter switches the rest
-    // between upcoming (future, soonest first) and previous (results, newest first).
-    const live = all.filter((u) => u.state === 'in').sort((x, y) => t0(x) - t0(y));
-    const upcoming = all.filter((u) => u.state === 'pre').sort((x, y) => t0(x) - t0(y));
-    const previous = all.filter((u) => u.state === 'post').sort((x, y) => t0(y) - t0(x));
     const dayList = (arr) => {
       let s = '', lastDay = '';
       arr.forEach((u) => {
@@ -1035,12 +1031,31 @@
       });
       return s;
     };
+
+    const q = fixSearch.trim().toLowerCase();
+    const filterEl = $('#fixFilter');
+    if (filterEl) filterEl.style.display = q ? 'none' : '';
     let html = '';
-    if (live.length) html += `<div class="fix-sec live">${t('fix_live_now')}</div>` + live.map(fixCard).join('');
-    if (fixMode === 'previous') {
-      html += previous.length ? dayList(previous) : `<div class="fix-empty">${t('fix_none_previous')}</div>`;
+    if (q) {
+      // Search any country: show all its matches (past, live, upcoming) in order.
+      const teamMatch = (id) => {
+        const tm = teamsById.get(id);
+        return (tn(tm) + ' ' + tm.name + ' ' + codeFor(tm.id, tm.name)).toLowerCase().includes(q);
+      };
+      const matched = all.filter((u) => teamMatch(u.home) || teamMatch(u.away)).sort((x, y) => t0(x) - t0(y));
+      html = matched.length ? dayList(matched) : `<div class="fix-empty">${t('fix_no_results')}</div>`;
     } else {
-      html += upcoming.length ? dayList(upcoming) : `<div class="fix-empty">${t('fix_none_upcoming')}</div>`;
+      // Current (live) games are always pinned on top. The filter switches the rest
+      // between upcoming (future, soonest first) and previous (results, newest first).
+      const live = all.filter((u) => u.state === 'in').sort((x, y) => t0(x) - t0(y));
+      const upcoming = all.filter((u) => u.state === 'pre').sort((x, y) => t0(x) - t0(y));
+      const previous = all.filter((u) => u.state === 'post').sort((x, y) => t0(y) - t0(x));
+      if (live.length) html += `<div class="fix-sec live">${t('fix_live_now')}</div>` + live.map(fixCard).join('');
+      if (fixMode === 'previous') {
+        html += previous.length ? dayList(previous) : `<div class="fix-empty">${t('fix_none_previous')}</div>`;
+      } else {
+        html += upcoming.length ? dayList(upcoming) : `<div class="fix-empty">${t('fix_none_upcoming')}</div>`;
+      }
     }
     el.innerHTML = html;
     // Wire expandable (finished) cards and restore any that were open before a re-render.
@@ -1208,6 +1223,13 @@
         window.scrollTo(0, 0);
       });
     });
+
+    // Fixtures country search.
+    const search = $('#fixSearch');
+    if (search) {
+      search.placeholder = t('fix_search_ph');
+      search.addEventListener('input', () => { fixSearch = search.value; renderFixtures(); });
+    }
 
     // Knockout simulation: tap a team to pick the winner (toggles off if re-tapped).
     const bracketEl = $('#bracket');
