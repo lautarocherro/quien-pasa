@@ -169,12 +169,21 @@
     return WCEngine.tournamentEliminated(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
   }
 
-  // Thirds that have clinched a top-8 place (guaranteed to advance whatever happens).
-  function computeClinchedThirds() {
+  // Monte Carlo chance each team reaches the Round of 32. Cached by a signature of
+  // all results so the simulation only re-runs when something actually changes.
+  let probCache = { sig: null, probs: null };
+  function computeAdvanceProb() {
+    const sig = MATCHES.map((m) => (m.played ? m.id + ':' + m.homeGoals + '-' + m.awayGoals : m.id + ':-')).join('|');
+    if (probCache.sig === sig && probCache.probs) return probCache.probs;
+    let seed = 1;
+    for (let i = 0; i < sig.length; i++) seed = (seed * 31 + sig.charCodeAt(i)) | 0;
     const groupList = WCDATA.groups.map((g) => ({
       id: g.id, teamIds: g.teams.map((tm) => tm.id), matches: matchesForGroup(g.id),
     }));
-    return WCEngine.tournamentClinchedThirds(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
+    const probs = WCEngine.advanceProbabilities(groupList,
+      { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds }, 6000, seed >>> 0);
+    probCache = { sig, probs };
+    return probs;
   }
 
   // -------- Rendering --------
@@ -445,11 +454,20 @@
     return { text: t('edge_rank', ra, rb) };
   }
 
+  // A coloured Round-of-32 chance: red (low) → amber → green (high).
+  function probCell(p) {
+    p = p || 0;
+    let pct;
+    if (p <= 0) pct = 0; else if (p >= 1) pct = 100; else { pct = Math.round(p * 100); if (pct === 0) pct = 1; if (pct === 100) pct = 99; }
+    const color = `hsl(${Math.round(p * 130)}, 70%, 60%)`;
+    return `<span class="qpct" style="color:${color}" title="${t('tip_chance')}">${pct}%</span>`;
+  }
+
   function renderThirds(thirds) {
     const note = $('#thirdsNote');
     const playedTotal = MATCHES.filter((m) => m.played).length;
     note.innerHTML = t('thirds_note', WCDATA.advancingThirds, playedTotal, MATCHES.length);
-    const clinched = computeClinchedThirds();
+    const probs = computeAdvanceProb();
 
     const tbl = $('#thirdsTable');
     tbl.innerHTML = `
@@ -459,7 +477,7 @@
         <th>${t('col_pts')}</th><th>${t('col_gd')}</th><th>${t('col_gf')}</th><th>${t('col_ga')}</th>
         <th title="${t('tip_yellow')}">🟨</th><th title="${t('tip_red')}">🟥</th>
         <th title="${t('tip_fp')}">${t('col_fp')}</th>
-        <th title="${t('tip_rk')}">${t('col_rk')}</th><th>${t('col_status')}</th>
+        <th title="${t('tip_rk')}">${t('col_rk')}</th><th title="${t('tip_chance')}">${t('col_chance')}</th>
         <th class="left">${t('col_decisive')}</th>
       </tr></thead>
       <tbody>
@@ -480,9 +498,7 @@
             <td class="ycard ${s.yellow ? 'has' : ''}">${s.yellow || 0}</td><td class="rcard ${s.red ? 'has' : ''}">${s.red || 0}</td>
             <td>${s.fairPlay}</td>
             <td>#${WCDATA.fifaRank[row.team.id]}</td>
-            <td>${clinched.has(row.team.id)
-              ? `<span class="badge clinched" title="${t('tip_clinched')}">${t('badge_clinched')}</span>`
-              : `<span class="badge ${row.qualifies ? 'in' : 'out'}">${row.qualifies ? t('badge_in') : t('badge_out')}</span>`}</td>
+            <td>${probCell(probs[row.team.id])}</td>
             <td class="left edge-cell">${edge.text ? `<span class="edge-box ${edgeCls}">${edge.text}</span>` : ''}</td>
           </tr>`;
         }).join('')}

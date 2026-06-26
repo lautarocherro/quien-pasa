@@ -495,6 +495,62 @@
     };
   }
 
+  /**
+   * Monte Carlo estimate of each team's chance to reach the Round of 32 (finish
+   * top-2 of its group OR among the 8 best thirds). Remaining matches are simulated
+   * with a Poisson goal model whose expected goals come from the FIFA ranking gap;
+   * finished matches are kept. Deterministic for a given `seed` so the same results
+   * always yield the same numbers. Returns { teamId: probability (0..1) }.
+   */
+  function advanceProbabilities(groupList, opts, n, seed) {
+    n = n || 6000;
+    const advThirds = (opts && opts.advancingThirds) || 8;
+    const fifaRank = (opts && opts.fifaRank) || {};
+    const rnk = (id) => fifaRank[id] || 30;
+    let a = (seed || 1) >>> 0;
+    const rng = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const pois = (lam) => { const L = Math.exp(-lam); let k = 0, p = 1; do { k++; p *= rng(); } while (p > L); return k - 1; };
+    const lam = (rs, ro) => Math.min(5, Math.max(0.15, 1.35 * Math.exp(0.7 * (ro - rs) / 48)));
+
+    const fixedAdvance = [], fixedThirds = [], incomplete = [];
+    groupList.forEach((g) => {
+      const remaining = g.matches.filter((m) => !m.played);
+      if (!remaining.length) {
+        const r = rankGroup(g.teamIds, computeStats(g.matches, g.teamIds), g.matches, opts);
+        fixedAdvance.push(r[0].stats.teamId, r[1].stats.teamId);
+        fixedThirds.push(r[2].stats);
+      } else {
+        incomplete.push({
+          teamIds: g.teamIds,
+          base: g.matches.filter((m) => m.played).map((m) => ({ home: m.home, away: m.away, played: true, homeGoals: +m.homeGoals || 0, awayGoals: +m.awayGoals || 0 })),
+          rem: remaining,
+        });
+      }
+    });
+    const count = {};
+    groupList.forEach((g) => g.teamIds.forEach((id) => { count[id] = 0; }));
+
+    for (let s = 0; s < n; s++) {
+      for (let i = 0; i < fixedAdvance.length; i++) count[fixedAdvance[i]]++;
+      const thirds = fixedThirds.map((st) => ({ stats: st }));
+      for (const g of incomplete) {
+        const sim = g.base.slice();
+        for (const m of g.rem) {
+          sim.push({ home: m.home, away: m.away, played: true, homeGoals: pois(lam(rnk(m.home), rnk(m.away))), awayGoals: pois(lam(rnk(m.away), rnk(m.home))) });
+        }
+        const r = rankGroup(g.teamIds, computeStats(sim, g.teamIds), sim, opts);
+        count[r[0].stats.teamId]++;
+        count[r[1].stats.teamId]++;
+        thirds.push({ stats: r[2].stats });
+      }
+      const rt = rankThirds(thirds, advThirds, opts);
+      for (let i = 0; i < rt.length; i++) if (rt[i].qualifies) count[rt[i].stats.teamId]++;
+    }
+    const out = {};
+    Object.keys(count).forEach((id) => { out[id] = count[id] / n; });
+    return out;
+  }
+
   global.WCEngine = {
     FAIRPLAY,
     blankStats,
@@ -505,6 +561,7 @@
     groupEliminated,
     tournamentEliminated,
     tournamentClinchedThirds,
+    advanceProbabilities,
     groupLockedTop2,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
