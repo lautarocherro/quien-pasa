@@ -164,7 +164,10 @@
 
   const S = {
     en: {
-      tab_groups: 'Groups', tab_fixtures: 'Fixtures', tab_thirds: 'Best 3rd-Placed', tab_bracket: 'Knockout Bracket', tab_rules: 'Tiebreak Rules',
+      tab_groups: 'Groups', tab_fixtures: 'Fixtures', tab_thirds: 'Best 3rd-Placed', tab_bracket: 'Knockout Bracket', tab_rules: 'Tiebreak Rules', tab_scorers: 'Top Scorers',
+      scorers_title: 'Top scorers', scorers_caption: 'Goals across the tournament so far (own goals excluded). Updates live.',
+      scorers_loading: 'Loading scorers…', scorers_empty: 'No goals recorded yet.', scorers_pens: 'penalties',
+      col_player: 'Player', col_goals: 'Goals',
       group_label: 'Group',
       fixtures_hint: 'Recent results, live, and upcoming matches in order. Times shown in your local timezone.',
       fix_live: 'LIVE', fix_ft: 'FT', cd_in: 'in {0}', fix_soon: 'kicking off', fix_vs: 'vs',
@@ -248,7 +251,10 @@
       rules_html: RULES_EN,
     },
     es: {
-      tab_groups: 'Grupos', tab_fixtures: 'Partidos', tab_thirds: 'Mejores terceros', tab_bracket: 'Eliminatorias', tab_rules: 'Reglas de desempate',
+      tab_groups: 'Grupos', tab_fixtures: 'Partidos', tab_thirds: 'Mejores terceros', tab_bracket: 'Eliminatorias', tab_rules: 'Reglas de desempate', tab_scorers: 'Goleadores',
+      scorers_title: 'Goleadores', scorers_caption: 'Goles en el torneo hasta ahora (sin goles en contra). Se actualiza en vivo.',
+      scorers_loading: 'Cargando goleadores…', scorers_empty: 'Aún no hay goles registrados.', scorers_pens: 'penales',
+      col_player: 'Jugador', col_goals: 'Goles',
       group_label: 'Grupo',
       fixtures_hint: 'Resultados recientes, en vivo y próximos, en orden. Horarios en tu zona horaria local.',
       fix_live: 'EN VIVO', fix_ft: 'Final', cd_in: 'en {0}', fix_soon: 'por comenzar', fix_vs: 'vs',

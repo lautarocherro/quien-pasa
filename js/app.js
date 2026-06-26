@@ -919,6 +919,7 @@
     }
     renderFixtures();
     if (goals.length) fireGoals(goals);        // after re-render so the flash hits the new row
+    if (goals.length && $('#view-scorers') && $('#view-scorers').classList.contains('active')) loadScorers();
   }
 
   // -------- Fixtures (chronological live + upcoming + results) --------
@@ -1097,6 +1098,70 @@
     fillFixSlot(slot, u);
   }
 
+  // -------- Top scorers (Golden Boot) --------
+  const goalCache = {};          // ESPN event id -> [goal events] (finished games cached for the session)
+  let scorersBusy = false;
+
+  function poolMap(items, conc, fn) {
+    return new Promise((resolve) => {
+      let i = 0, done = 0;
+      if (!items.length) return resolve();
+      const next = () => {
+        if (i >= items.length) { if (done === items.length) resolve(); return; }
+        const item = items[i++];
+        Promise.resolve(fn(item)).catch(() => {}).then(() => { done++; (done === items.length) ? resolve() : next(); });
+      };
+      for (let w = 0; w < Math.min(conc, items.length); w++) next();
+    });
+  }
+
+  async function loadScorers() {
+    const el = $('#scorersList');
+    if (!el || !window.WCLive) return;
+    const matches = Object.values(LIVE_FIX).filter((u) =>
+      u.id && (u.state === 'post' || u.state === 'in') && teamsById.get(u.home) && teamsById.get(u.away));
+    if (!matches.length) { el.innerHTML = `<div class="fix-empty">${t('scorers_empty')}</div>`; return; }
+    // Fetch what we don't have yet (live games always refetched); show a loader the first time.
+    const need = matches.filter((u) => u.state === 'in' || !(u.id in goalCache));
+    if (need.length && !Object.keys(goalCache).length) el.innerHTML = `<div class="fix-loading">${t('scorers_loading')}</div>`;
+    if (!scorersBusy && need.length) {
+      scorersBusy = true;
+      await poolMap(need, 8, async (u) => {
+        const det = await window.WCLive.fetchMatchDetail(u.id);
+        if (det) goalCache[u.id] = (det.events || []).filter((e) => e.kind === 'goal');
+      });
+      scorersBusy = false;
+    }
+    renderScorers(matches, el);
+  }
+
+  function renderScorers(matches, el) {
+    const tally = {};
+    matches.forEach((u) => {
+      (goalCache[u.id] || []).forEach((e) => {
+        if (e.note === 'OG' || !e.team || !teamsById.get(e.team)) return;   // own goals don't credit a scorer
+        const key = (e.player || '?') + '|' + e.team;
+        const r = tally[key] || (tally[key] = { player: e.player || '?', teamId: e.team, goals: 0, pens: 0 });
+        r.goals++; if (e.note === 'P') r.pens++;
+      });
+    });
+    const list = Object.values(tally).filter((r) => r.goals > 0)
+      .sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player));
+    if (!list.length) { el.innerHTML = `<div class="fix-empty">${t('scorers_empty')}</div>`; return; }
+    let rank = 0, prev = -1;
+    el.innerHTML = `<table class="thirds scorers-tbl"><thead><tr>
+      <th>#</th><th class="left">${t('col_player')}</th><th class="left">${t('col_team')}</th><th>${t('col_goals')}</th>
+    </tr></thead><tbody>${list.map((r, i) => {
+      if (r.goals !== prev) { rank = i + 1; prev = r.goals; }
+      const tm = teamsById.get(r.teamId);
+      const pens = r.pens ? ` <span class="sc-pen" title="${t('scorers_pens')}">${r.pens}P</span>` : '';
+      return `<tr><td class="rank-num">${rank}</td>
+        <td class="left">${r.player}</td>
+        <td class="left"><div class="team-cell"><span class="flag">${tm.flag || ''}</span><span class="tname">${tn(tm)}</span></div></td>
+        <td class="pts">${r.goals}${pens}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
+
   // -------- Goal alerts --------
   function armAlerts() {
     try {
@@ -1196,6 +1261,7 @@
         $('#view-' + tab.dataset.view).classList.add('active');
         tab.scrollIntoView({ block: 'nearest', inline: 'center' });
         window.scrollTo(0, 0);
+        if (tab.dataset.view === 'scorers') loadScorers();
       });
     });
 
