@@ -1098,13 +1098,38 @@
     if (!alertsOn) return;
     playGoalSound();
     goals.forEach((m) => {
-      const h = teamsById.get(m.home), a = teamsById.get(m.away);
-      const body = `${tn(h)} ${m.homeGoals}–${m.awayGoals} ${tn(a)} · ${m.minute || 'LIVE'}`;
-      if ('Notification' in window && Notification.permission === 'granted') {
+      showGoalToast(m);                       // in-app floating banner, over any tab
+      // OS notification only when the app isn't on screen (avoids a duplicate alert).
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        const h = teamsById.get(m.home), a = teamsById.get(m.away);
+        const body = `${tn(h)} ${m.homeGoals}–${m.awayGoals} ${tn(a)} · ${m.minute || 'LIVE'}`;
         try { new Notification(t('goal_title'), { body, tag: 'goal-' + m.id, renotify: true }); } catch (e) {}
       }
       flashRow(m.id);
     });
+  }
+
+  // Floating goal banner shown over whatever the user is viewing. Auto-dismisses;
+  // tap to close. Stacks if several goals land at once.
+  function showGoalToast(m) {
+    const host = $('#goalToasts');
+    if (!host) return;
+    const h = teamsById.get(m.home), a = teamsById.get(m.away);
+    if (!h || !a) return;
+    const el = document.createElement('div');
+    el.className = 'goal-toast';
+    el.innerHTML =
+      `<div class="gt-title">${t('goal_title')}</div>` +
+      `<div class="gt-match"><span class="flag">${h.flag || ''}</span> ${tn(h)} ` +
+      `<b>${m.homeGoals}–${m.awayGoals}</b> ${tn(a)} <span class="flag">${a.flag || ''}</span>` +
+      ` · ${m.minute || t('fix_live')}</div>`;
+    host.appendChild(el);
+    void el.offsetWidth;                  // commit the initial state so the transition runs
+    el.classList.add('show');
+    let gone = false;
+    const close = () => { if (gone) return; gone = true; el.classList.remove('show'); setTimeout(() => el.remove(), 300); };
+    el.addEventListener('click', close);
+    setTimeout(close, 6000);
   }
 
   function updateAlertBtn() {
