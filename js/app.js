@@ -170,6 +170,74 @@
     return WCEngine.tournamentEliminated(groupList, { fifaRank: WCDATA.fifaRank, advancingThirds: WCDATA.advancingThirds });
   }
 
+  // "What needs to happen" on the final group matchday: for each still-alive team
+  // with one game left, what each result (win/draw/lose) means for finishing top 2.
+  // Points-only and sound for the "Through" label (a rival counts as possibly-above
+  // on equal points). Only groups where every team has <=1 game left are shown.
+  function computeScenarios(dead) {
+    const out = [];
+    WCDATA.groups.forEach((g) => {
+      const ids = g.teams.map((tm) => tm.id);
+      const gm = matchesForGroup(g.id);
+      const remaining = gm.filter((m) => !m.played);
+      if (!remaining.length) return;
+      const remCount = {}; ids.forEach((id) => { remCount[id] = 0; });
+      remaining.forEach((m) => { remCount[m.home]++; remCount[m.away]++; });
+      if (ids.some((id) => remCount[id] > 1)) return;          // not the final round
+      const stats = WCEngine.computeStats(gm, ids);
+      const cur = {}; ids.forEach((id) => { cur[id] = stats.get(id).points; });
+      const teams = [];
+      ids.forEach((T) => {
+        if (dead.has(T)) return;                                // eliminated — already shown OUT
+        const tm = remaining.find((m) => m.home === T || m.away === T);
+        if (!tm) return;                                        // no game left (spectator)
+        const O = tm.home === T ? tm.away : tm.home;
+        const others = remaining.filter((m) => m !== tm);
+        const res = {};
+        ['W', 'D', 'L'].forEach((o) => {
+          const P = cur[T] + (o === 'W' ? 3 : o === 'D' ? 1 : 0);
+          const Op = cur[O] + (o === 'W' ? 0 : o === 'D' ? 1 : 3);
+          let maxGe = 0, minGt = 99;
+          const n = others.length, C = Math.pow(3, n);
+          for (let c = 0; c < C; c++) {
+            const pts = Object.assign({}, cur); pts[T] = P; pts[O] = Op;
+            let x = c;
+            for (let k = 0; k < n; k++) {
+              const oo = x % 3; x = Math.floor(x / 3); const m = others[k];
+              if (oo === 0) pts[m.home] += 3; else if (oo === 1) { pts[m.home]++; pts[m.away]++; } else pts[m.away] += 3;
+            }
+            let ge = 0, gt = 0;
+            ids.forEach((id) => { if (id === T) return; if (pts[id] >= P) ge++; if (pts[id] > P) gt++; });
+            if (ge > maxGe) maxGe = ge;
+            if (gt < minGt) minGt = gt;
+          }
+          res[o] = maxGe <= 1 ? 'qualify' : minGt <= 1 ? 'inplay' : minGt <= 2 ? 'third' : 'out';
+        });
+        teams.push({ teamId: T, through: res.L === 'qualify', res });
+      });
+      if (teams.length) out.push({ group: g.id, teams });
+    });
+    return out;
+  }
+
+  function renderScenarios(dead) {
+    const el = $('#scenariosPanel');
+    if (!el) return;
+    const scns = computeScenarios(dead);
+    if (!scns.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    const pill = (rk, k) => `<span class="scn-pill ${k}">${t('scn_' + rk)}: ${t('scn_' + k)}</span>`;
+    el.innerHTML = `<details class="scn"><summary>${t('scn_title')}</summary><div class="scn-body">` +
+      scns.map((grp) => `<div class="scn-grp"><div class="scn-grp-h">${t('group_label')} ${grp.group}</div>` +
+        grp.teams.map((ts) => {
+          const tm = teamsById.get(ts.teamId);
+          const head = `<span class="scn-team"><span class="flag">${tm.flag || ''}</span>${tn(tm)}</span>`;
+          if (ts.through) return `<div class="scn-row">${head}<span class="scn-pill qualify">${t('scn_through')}</span></div>`;
+          return `<div class="scn-row">${head}${pill('win', ts.res.W)}${pill('draw', ts.res.D)}${pill('lose', ts.res.L)}</div>`;
+        }).join('') + `</div>`).join('') +
+      `</div></details>`;
+  }
+
   // Monte Carlo chance each team reaches the Round of 32. Cached by a signature of
   // all results so the simulation only re-runs when something actually changes.
   let probCache = { sig: null, probs: null };
@@ -206,6 +274,7 @@
     const qThirds = qualifiedSet(thirds);
     const dead = computeEliminated();
     const r32opp = computeR32Opponents(standings, thirds);
+    renderScenarios(dead);
     grid.innerHTML = '';
     for (const g of WCDATA.groups) {
       const ranked = standings.get(g.id);
@@ -256,6 +325,7 @@
     const qThirds = qualifiedSet(thirds);
     const dead = computeEliminated();
     const r32opp = computeR32Opponents(standings, thirds);
+    renderScenarios(dead);
     for (const g of WCDATA.groups) {
       const card = document.querySelector(`.group-card[data-group="${g.id}"]`);
       if (!card) continue;

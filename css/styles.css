@@ -642,6 +642,27 @@ td.edge-cell { min-width: 240px; }
   border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 14px; margin-bottom: 14px;
 }
 .note strong { color: var(--accent-2); }
+/* "What needs to happen" panel */
+#scenariosPanel { max-width: 100%; margin: 0 0 16px; }
+.scn { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.scn summary {
+  cursor: pointer; list-style: none; user-select: none;
+  font-size: 13px; font-weight: 700; color: var(--text); padding: 12px 16px;
+}
+.scn summary::-webkit-details-marker { display: none; }
+.scn summary::before { content: '▸ '; color: var(--muted); }
+.scn[open] summary::before { content: '▾ '; }
+.scn summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.scn-body { padding: 0 16px 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px 22px; }
+.scn-grp-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-2); margin: 8px 0 5px; }
+.scn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 0; }
+.scn-team { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; min-width: 130px; }
+.scn-team .flag { font-size: 15px; }
+.scn-pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.scn-pill.qualify { background: rgba(30, 215, 154, 0.16); color: var(--accent); }
+.scn-pill.inplay { background: rgba(86, 201, 255, 0.14); color: var(--winner); }
+.scn-pill.third { background: rgba(246, 197, 88, 0.15); color: var(--accent-2); }
+.scn-pill.out { background: rgba(255, 92, 114, 0.15); color: var(--danger); }
 .groups-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin: 2px 2px 16px; }
 .groups-bar .legend { margin: 0; flex: 1 1 auto; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin: 2px 2px 16px; }
