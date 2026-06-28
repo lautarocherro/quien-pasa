@@ -495,6 +495,11 @@ td.edge-cell { min-width: 240px; }
 .tie .slot.pick { cursor: pointer; border-radius: 5px; }
 .tie .slot.pick:hover { background: rgba(255, 255, 255, 0.06); }
 .tie .slot.winner { background: rgba(30, 215, 154, 0.13); border-radius: 5px; }
+/* a tie decided by the real result: not editable, winner shown in gold */
+.tie.locked { border-color: rgba(246, 197, 88, 0.4); }
+.tie.locked .slot { cursor: default; }
+.tie.locked .slot.winner { background: rgba(246, 197, 88, 0.16); }
+.tie.locked .slot.winner .tname { color: var(--accent-2); }
 
 /* bracket toolbar + champion banner */
 .bracket-bar {

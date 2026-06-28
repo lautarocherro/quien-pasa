@@ -99,14 +99,25 @@
     // Simulated knockout winners: { matchNo: winningTeamId }. The user picks who
     // advances (not a score); winners propagate up the tree.
     const picks = opts.knockoutPicks || {};
+    // Real knockout results override predictions: realResult(homeId, awayId) returns
+    // the actual winning team id once that game has been played, else null.
+    const real = opts.realResult || function () { return null; };
 
     // resolved[no] = { home, away } participant slots for every match.
     const resolved = {};
     R32.forEach((m) => { resolved[m.no] = { home: resolveR32(m.a), away: resolveR32(m.b) }; });
 
+    // A match is "decided for real" when both participants are known and the actual
+    // game between them has finished — that result wins over any prediction.
+    const realWinnerId = (no) => {
+      const r = resolved[no];
+      if (!r || !r.home || !r.away || !r.home.id || !r.away.id) return null;
+      return real(r.home.id, r.away.id) || null;
+    };
     const winnerOf = (no) => {
       const r = resolved[no];
-      const w = r && picks[no];
+      if (!r) return null;
+      const w = realWinnerId(no) || picks[no];   // real result first, then the pick
       if (!w) return null;
       if (r.home && r.home.id === w) return r.home;
       if (r.away && r.away.id === w) return r.away;
@@ -114,11 +125,9 @@
     };
     const loserOf = (no) => {
       const r = resolved[no];
-      const w = r && picks[no];
+      const w = winnerOf(no);
       if (!w || !r.home || !r.away || !r.home.id || !r.away.id) return null;
-      if (r.home.id === w) return r.away;
-      if (r.away.id === w) return r.home;
-      return null;
+      return r.home.id === w.id ? r.away : r.home;
     };
     const wSlot = (no) => winnerOf(no) || { placeholder: i18n('ph_wmatch', no) };
     const lSlot = (no) => loserOf(no) || { placeholder: i18n('ph_lmatch', no) };
@@ -133,7 +142,7 @@
     const tieOf = (no, extra) => {
       const r = resolved[no];
       const w = winnerOf(no);
-      return Object.assign({ no: no, home: r.home, away: r.away, winnerId: w ? w.id : null, meta: 'M' + no }, extra || {});
+      return Object.assign({ no: no, home: r.home, away: r.away, winnerId: w ? w.id : null, locked: !!realWinnerId(no), meta: 'M' + no }, extra || {});
     };
 
     // Mirrored bracket: Round of 32 on both outer edges, converging inward to the

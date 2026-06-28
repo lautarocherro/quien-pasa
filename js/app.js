@@ -58,6 +58,9 @@
   // Fixtures view: ESPN data (kickoff time, venue, live state) keyed by team pair.
   const LIVE_FIX = {};
   const fixKey = (a, b) => [a, b].sort().join('-');
+  // Key fixtures by ESPN event id so a group game and a knockout game between the
+  // same two teams never collide (the team-pair fixKey alone would overwrite one).
+  const fxId = (u) => String((u && u.id) || fixKey(u.home, u.away));
   let fixMode = (function () {
     try { return localStorage.getItem('wc2026-fixmode') === 'previous' ? 'previous' : 'upcoming'; }
     catch (e) { return 'upcoming'; }
@@ -612,11 +615,14 @@
       lockedPos[g.id] = WCEngine.groupLockedTop2(g.teams.map((t) => t.id), gm, ENGINE_OPTS());
     });
     const allGroupsComplete = Object.values(groupComplete).every(Boolean);
+    const ko = knockoutResults();
+    const realResult = (a, b) => ko[fixKey(a, b)] || null;
     const bracket = WCBracket.build(standings, thirds, teamsById, {
       groupComplete,
       allGroupsComplete,
       lockedPos,
       knockoutPicks,
+      realResult,
     });
     lastBracket = bracket;                       // kept for the share image
     note.innerHTML = bracket.note || '';
@@ -805,17 +811,18 @@
 
   function tieEl(tie) {
     if (tie.spacer) return `<div style="height:18px"></div>`;
-    const finalCls = tie.final ? 'final' : '';
+    const finalCls = (tie.final ? 'final' : '') + (tie.locked ? ' locked' : '');
     const slot = (s) => {
       if (!s) return `<div class="slot"><span class="tname tbd">—</span></div>`;
       if (s.placeholder) {
         return `<div class="slot"><span class="tname tbd">${s.placeholder}</span></div>`;
       }
       // Compact: flag + 3-letter code + seed; full name on hover. Clickable to pick
-      // the winner (advances up the tree); the picked side is highlighted.
+      // the winner (advances up the tree); the picked side is highlighted. A tie
+      // decided by a real result is locked (not pickable) — reality wins.
       const isWin = tie.winnerId && s.id === tie.winnerId;
-      const pickable = tie.no != null;
-      const title = s.provisional ? `${s.name} — provisional, can still change` : s.name;
+      const pickable = tie.no != null && !tie.locked;
+      const title = tie.locked ? `${s.name} — ${t('bracket_result')}` : (s.provisional ? `${s.name} — provisional, can still change` : s.name);
       return `<div class="slot${isWin ? ' winner' : ''}${pickable ? ' pick' : ''}"${pickable ? ` data-match="${tie.no}" data-team="${s.id}"` : ''} title="${title}">
         <span class="flag">${s.flag || ''}</span>
         <span class="tname ${s.provisional ? 'prov' : ''}">${codeFor(s.id, s.name)}</span>
@@ -918,20 +925,41 @@
   // Poll a contiguous range covering every not-yet-final match, padded by a day
   // on each end so a timezone difference in ESPN's date bucketing can't hide a
   // game. The range shrinks from the front as earlier matches finish.
-  function liveDates() {
-    const ds = MATCHES.filter((m) => !m.finished).map((m) => m.date).sort();
+  // A single ESPN date-range query (YYYYMMDD-YYYYMMDD) covering the whole tournament:
+  // from the day before the first group game to ~5 weeks after the last, so the
+  // knockout rounds (R32 -> Final) are fetched too, not just the group stage.
+  function tournamentDates() {
+    const ds = WCDATA.matches.map((m) => m.date).filter(Boolean).sort();
     if (!ds.length) return [];
-    const start = new Date(ds[0] + 'T00:00:00');
-    const end = new Date(ds[ds.length - 1] + 'T00:00:00');
-    start.setDate(start.getDate() - 1);
-    end.setDate(end.getDate() + 1);
-    const out = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      out.push(`${y}${m}${day}`);
-    }
+    const fmt = (dt) => `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
+    const start = new Date(ds[0] + 'T00:00:00'); start.setDate(start.getDate() - 1);
+    const end = new Date(ds[ds.length - 1] + 'T00:00:00'); end.setDate(end.getDate() + 35);
+    return [fmt(start) + '-' + fmt(end)];
+  }
+
+  // End-of-day timestamp of the last group match. Games dated after this are
+  // knockout-stage games (used to feed real results into the bracket).
+  function groupEndTs() {
+    let max = 0;
+    WCDATA.matches.forEach((m) => {
+      const ts = new Date((m.date || '') + 'T23:59:59').getTime();
+      if (ts > max) max = ts;
+    });
+    return max;
+  }
+
+  // Finished knockout games -> { sortedTeamPair: winningTeamId }, for the bracket.
+  function knockoutResults() {
+    const out = {};
+    const end = groupEndTs();
+    Object.values(LIVE_FIX).forEach((u) => {
+      if (!u || u.state !== 'post' || !u.date) return;
+      if (new Date(u.date).getTime() <= end) return;                 // group game, skip
+      if (!teamsById.get(u.home) || !teamsById.get(u.away)) return;
+      let w = u.winnerId;
+      if (!w) { const hg = u.scores[u.home] || 0, ag = u.scores[u.away] || 0; w = hg > ag ? u.home : (ag > hg ? u.away : null); }
+      if (w) out[fixKey(u.home, u.away)] = w;
+    });
     return out;
   }
 
@@ -954,13 +982,22 @@
   async function pollLive() {
     if (!window.WCLive) return;
     let updates;
-    try { updates = await window.WCLive.pollDates(liveDates()); }
+    try { updates = await window.WCLive.pollDates(tournamentDates()); }
     catch (e) { return; }
 
+    const koSigBefore = JSON.stringify(knockoutResults());
     const changed = [];
     const goals = [];                          // live matches whose score went up
     const cardJobs = [];
     updates.forEach((u) => {
+      // Record every game (group + knockout) for the fixtures view and the bracket.
+      if (u.home && u.away && teamsById.get(u.home) && teamsById.get(u.away)) {
+        const k = fxId(u);
+        const prev = LIVE_FIX[k];
+        if (prev) { u.events = prev.events; u.stats = prev.stats; }  // keep last detail until refetched
+        LIVE_FIX[k] = u;
+      }
+      // Standings only track group matches; knockout games have no MATCHES entry.
       const m = MATCHES.find((x) =>
         (x.home === u.a && x.away === u.b) || (x.home === u.b && x.away === u.a));
       if (!m || m.finished) return;            // leave locked results alone
@@ -979,20 +1016,13 @@
         }
       }
       if (wasLive && (hg + ag) > prevTotal) goals.push(m);   // GOAL while we were watching
-      // Refresh the fixtures entry now (fresh scoreboard data) so detail can attach.
-      if (u.home && u.away) {
-        const k = fixKey(u.home, u.away);
-        const prev = LIVE_FIX[k];
-        if (prev) { u.events = prev.events; u.stats = prev.stats; }  // keep last detail until refetched
-        LIVE_FIX[k] = u;
-      }
       // Pull cards (live + just-finished) and full detail (live only).
       if ((u.state === 'in' || u.state === 'post') && u.id) {
         cardJobs.push(window.WCLive.fetchMatchDetail(u.id).then((det) => {
           if (!det) return;
           if (applyCardsToMatch(m, det.cards)) mark(changed, m);
           if (u.state === 'in') {
-            const fx = LIVE_FIX[fixKey(u.home, u.away)];
+            const fx = LIVE_FIX[fxId(u)];
             if (fx) { fx.events = det.events; fx.stats = det.stats; }
           }
         }));
@@ -1000,6 +1030,7 @@
     });
     await Promise.all(cardJobs);
 
+    const koChanged = JSON.stringify(knockoutResults()) !== koSigBefore;
     if (changed.length) {
       changed.forEach(updateMatchRow);
       const standings = computeGroupStandings();
@@ -1007,6 +1038,8 @@
       refreshStandings(standings, thirds);
       renderThirds(thirds);
       renderBracket(standings, thirds);
+    } else if (koChanged) {
+      rerenderBracket();                        // a knockout result landed -> advance teams
     }
     renderFixtures();
     if (goals.length) fireGoals(goals);        // after re-render so the flash hits the new row
@@ -1016,10 +1049,9 @@
   // -------- Fixtures (chronological live + upcoming + results) --------
   async function loadFixtures() {
     if (!window.WCLive) return;
-    const dates = Array.from(new Set(WCDATA.matches.map((m) => m.date.replace(/-/g, ''))));
     let ups;
-    try { ups = await window.WCLive.pollDates(dates); } catch (e) { return; }
-    ups.forEach((u) => { if (u.home && u.away) LIVE_FIX[fixKey(u.home, u.away)] = u; });
+    try { ups = await window.WCLive.pollDates(tournamentDates()); } catch (e) { return; }
+    ups.forEach((u) => { if (u.home && u.away) LIVE_FIX[fxId(u)] = u; });
     renderFixtures();
   }
 
@@ -1055,7 +1087,7 @@
       ? `<div class="fx-venue">📍 ${u.venue}${u.city ? ' · ' + u.city.split(',')[0] : ''}</div>` : '';
     // Finished games are expandable: tap to load the goal/card timeline + stats.
     const expandable = u.state === 'post';
-    return `<div class="fix ${cls}${expandable ? ' expandable' : ''}" data-fk="${fixKey(u.home, u.away)}"${u.id ? ` data-eid="${u.id}"` : ''}>
+    return `<div class="fix ${cls}${expandable ? ' expandable' : ''}" data-fk="${fxId(u)}"${u.id ? ` data-eid="${u.id}"` : ''}>
       <div class="fx-main">
         <div class="fx-when"><div class="fx-time">${time}</div><div class="fx-status">${status}</div></div>
         <div class="fx-teams">${team(h, hw, hg)}${team(a, aw, ag)}</div>

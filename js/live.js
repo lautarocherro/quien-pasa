@@ -35,7 +35,7 @@
       if (!comp) return;
       const st = (e.status && e.status.type) || {};
       const scores = {};
-      let ok = true, homeId = null, awayId = null;
+      let ok = true, homeId = null, awayId = null, winnerId = null;
       (comp.competitors || []).forEach((c) => {
         const abbr = ((c.team && c.team.abbreviation) || '').toUpperCase();
         const id = ABBR2ID[abbr];
@@ -43,6 +43,7 @@
         scores[id] = parseInt(c.score, 10) || 0;
         if (c.homeAway === 'home') homeId = id;
         else if (c.homeAway === 'away') awayId = id;
+        if (c.winner === true) winnerId = id;        // set on finals (incl. penalty shootouts)
       });
       const ids = Object.keys(scores);
       if (!ok || ids.length !== 2) return;
@@ -54,6 +55,7 @@
         home: homeId || ids[0],
         away: awayId || ids[1],
         scores: scores,
+        winnerId: winnerId,                // id of the advancing team once final, else null
         state: st.state || 'pre',          // 'pre' | 'in' | 'post'
         detail: st.shortDetail || st.detail || '',
         date: e.date || '',                // ISO kickoff (UTC)
