@@ -991,7 +991,8 @@
     const cardJobs = [];
     updates.forEach((u) => {
       // Record every game (group + knockout) for the fixtures view and the bracket.
-      if (u.home && u.away && teamsById.get(u.home) && teamsById.get(u.away)) {
+      const validTeams = u.home && u.away && teamsById.get(u.home) && teamsById.get(u.away);
+      if (validTeams) {
         const k = fxId(u);
         const prev = LIVE_FIX[k];
         if (prev) { u.events = prev.events; u.stats = prev.stats; }  // keep last detail until refetched
@@ -1000,27 +1001,30 @@
       // Standings only track group matches; knockout games have no MATCHES entry.
       const m = MATCHES.find((x) =>
         (x.home === u.a && x.away === u.b) || (x.home === u.b && x.away === u.a));
-      if (!m || m.finished) return;            // leave locked results alone
-      const hg = u.scores[m.home], ag = u.scores[m.away];
-      const wasLive = m.live === true;         // only alert once we have a baseline
-      const prevTotal = (m.homeGoals || 0) + (m.awayGoals || 0);
-      if (u.state === 'post') {
-        m.finished = true; m.live = false; m.played = true;
-        m.homeGoals = hg; m.awayGoals = ag; m.minute = null;
-        mark(changed, m);
-      } else if (u.state === 'in') {
-        if (!m.live || m.homeGoals !== hg || m.awayGoals !== ag || m.minute !== u.detail) {
-          m.live = true; m.played = true;
-          m.homeGoals = hg; m.awayGoals = ag; m.minute = u.detail;
+      const groupActive = m && !m.finished;     // a group game still open to updates
+      if (groupActive) {
+        const hg = u.scores[m.home], ag = u.scores[m.away];
+        const wasLive = m.live === true;         // only alert once we have a baseline
+        const prevTotal = (m.homeGoals || 0) + (m.awayGoals || 0);
+        if (u.state === 'post') {
+          m.finished = true; m.live = false; m.played = true;
+          m.homeGoals = hg; m.awayGoals = ag; m.minute = null;
           mark(changed, m);
+        } else if (u.state === 'in') {
+          if (!m.live || m.homeGoals !== hg || m.awayGoals !== ag || m.minute !== u.detail) {
+            m.live = true; m.played = true;
+            m.homeGoals = hg; m.awayGoals = ag; m.minute = u.detail;
+            mark(changed, m);
+          }
         }
+        if (wasLive && (hg + ag) > prevTotal) goals.push(m);   // GOAL while we were watching
       }
-      if (wasLive && (hg + ag) > prevTotal) goals.push(m);   // GOAL while we were watching
-      // Pull cards (live + just-finished) and full detail (live only).
-      if ((u.state === 'in' || u.state === 'post') && u.id) {
+      // Live timeline + stats for ANY game in progress (knockout games included),
+      // plus the card breakdown for a just-finished group game.
+      if (u.id && validTeams && (u.state === 'in' || (u.state === 'post' && groupActive))) {
         cardJobs.push(window.WCLive.fetchMatchDetail(u.id).then((det) => {
           if (!det) return;
-          if (applyCardsToMatch(m, det.cards)) mark(changed, m);
+          if (groupActive && applyCardsToMatch(m, det.cards)) mark(changed, m);
           if (u.state === 'in') {
             const fx = LIVE_FIX[fxId(u)];
             if (fx) { fx.events = det.events; fx.stats = det.stats; }
